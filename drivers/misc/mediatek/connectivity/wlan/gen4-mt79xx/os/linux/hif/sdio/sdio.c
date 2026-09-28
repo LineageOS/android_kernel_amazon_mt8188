@@ -896,6 +896,12 @@ uint32_t glRegisterBus(probe_card pfProbe, remove_card pfRemove)
 	mtk_sdio_driver.remove = mtk_sdio_remove;
 
 	ret = (sdio_register_driver(&mtk_sdio_driver) == 0) ? WLAN_STATUS_SUCCESS : WLAN_STATUS_FAILURE;
+#if CFG_CHIP_RESET_LEGACY_KO
+	/* Lets COMM-CORE probe the Wi-Fi function again on its own */
+	if (ret == WLAN_STATUS_SUCCESS)
+		comm_core_register_sdio_driver(RST_MODULE_WIFI,
+					       &mtk_sdio_driver);
+#endif
 #endif
 
 	return ret;
@@ -913,6 +919,10 @@ uint32_t glRegisterBus(probe_card pfProbe, remove_card pfRemove)
 void glUnregisterBus(remove_card pfRemove)
 {
 	ASSERT(pfRemove);
+#if CFG_CHIP_RESET_LEGACY_KO && (MTK_WCN_HIF_SDIO == 0)
+	/* Before the driver goes away, COMM-CORE may re-register it */
+	comm_core_unregister_sdio_driver(RST_MODULE_WIFI);
+#endif
 	pfRemove();
 
 #if MTK_WCN_HIF_SDIO

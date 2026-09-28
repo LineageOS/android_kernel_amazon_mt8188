@@ -7556,6 +7556,18 @@ static void wlanRemove(void);
  * \retval negative value Failed
  */
 /*----------------------------------------------------------------------------*/
+#if CFG_CHIP_RESET_LEGACY_KO
+/* COMM-CORE learns the SDIO host from the function being probed */
+static void *glCommCoreFunc(void *pvData)
+{
+#if defined(_HIF_SDIO) && (MTK_WCN_HIF_SDIO == 0)
+	return pvData;
+#else
+	return NULL;
+#endif
+}
+#endif
+
 static int32_t wlanProbe(void *pvData, void *pvDriverData)
 {
 	uint32_t bus_id = 0;
@@ -7626,6 +7638,8 @@ static int32_t wlanProbe(void *pvData, void *pvDriverData)
 #if CFG_CHIP_RESET_LEGACY_KO
 	rstNotifyWholeChipRstStatus(RST_MODULE_WIFI,
 				    RST_MODULE_STATE_PROBE_START, NULL);
+	NotifyCommCoreStatusCmd(RST_MODULE_WIFI, COMM_CORE_STATUS_PROBE_START,
+				glCommCoreFunc(pvData));
 #endif
 
 #if 0
@@ -7982,6 +7996,10 @@ static int32_t wlanProbe(void *pvData, void *pvDriverData)
 #if CFG_CHIP_RESET_LEGACY_KO
 	rstNotifyWholeChipRstStatus(RST_MODULE_WIFI,
 				    RST_MODULE_STATE_PROBE_DONE, NULL);
+	NotifyCommCoreStatusCmd(RST_MODULE_WIFI,
+				i4Status ? COMM_CORE_STATUS_PROBE_FAIL :
+					   COMM_CORE_STATUS_PROBE_SUCCESS,
+				glCommCoreFunc(pvData));
 #endif
 WLAN_PROBE_RETURN:
 #if CFG_CHIP_RESET_SUPPORT
@@ -8173,6 +8191,11 @@ static void wlanRemove(void)
 
 #if (CONFIG_WLAN_SERVICE == 1)
 	wlanServiceExit(prGlueInfo);
+#endif
+
+#if CFG_CHIP_RESET_LEGACY_KO
+	NotifyCommCoreStatusCmd(RST_MODULE_WIFI, COMM_CORE_STATUS_REMOVE_START,
+				NULL);
 #endif
 
 	/* Hold mutex in order to asynchronously check whether the net */
@@ -8436,6 +8459,10 @@ static void wlanRemove(void)
 
 #if CFG_CHIP_RESET_SUPPORT
 	glSetResettingFlag(prGlueInfo, FALSE);
+#endif
+#if CFG_CHIP_RESET_LEGACY_KO
+	NotifyCommCoreStatusCmd(RST_MODULE_WIFI,
+				COMM_CORE_STATUS_REMOVE_SUCCESS, NULL);
 #endif
 
 WLAN_REMOVE_RETURN:
