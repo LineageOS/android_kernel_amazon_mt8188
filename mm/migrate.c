@@ -60,6 +60,13 @@
 
 #include "internal.h"
 
+/* Metatag(TAG_ACK_MM) begin */
+#ifdef CONFIG_CMA
+#include <linux/cma.h>
+#include "cma.h"
+#endif
+/* Metatag(TAG_ACK_MM) end */
+
 int isolate_movable_page(struct page *page, isolate_mode_t mode)
 {
 	struct address_space *mapping;
@@ -1151,6 +1158,55 @@ out:
 	return rc;
 }
 
+/* Metatag(TAG_ACK_MM) begin */
+#ifdef CONFIG_CMA
+static bool is_in_cma_range(struct page *page)
+{
+	int i = 0;
+	unsigned long pfn = 0;
+
+	pfn = page_to_pfn(page);
+	for (i = 0; i < cma_area_count; i++) {
+		struct cma *cma = &cma_areas[i];
+
+		if (cma->base_pfn <= pfn && (cma->base_pfn + cma->count) > pfn)
+			return true;
+	}
+
+	return false;
+}
+
+static bool forbid_move_to_cma_range(struct page *old_page, struct page *new_page)
+{
+	struct address_space *mapping = page_mapping(old_page);
+
+	if (!mapping)
+		return false;
+
+	if (!(mapping_gfp_mask(mapping) & ___GFP_CMA) && is_in_cma_range(new_page))
+		return true;
+
+	return false;
+}
+
+static struct page *alloc_new_page_out_cma_range(struct page *old_page)
+{
+	struct page *newpage = NULL;
+	struct address_space *mapping = NULL;
+	gfp_t gfp_mask = 0;
+
+	mapping = page_mapping(old_page);
+	if (!mapping)
+		goto out;
+	gfp_mask = mapping_gfp_mask(mapping);
+	newpage = alloc_page(gfp_mask);
+
+out:
+	return newpage;
+}
+#endif
+/* Metatag(TAG_ACK_MM) end */
+
 /*
  * Obtain the lock on page, remove all ptes and migrate the page
  * to the newly allocated page in newpage.
@@ -1163,6 +1219,11 @@ static int unmap_and_move(new_page_t get_new_page,
 {
 	int rc = MIGRATEPAGE_SUCCESS;
 	struct page *newpage = NULL;
+/* Metatag(TAG_ACK_MM) begin */
+#ifdef CONFIG_CMA
+	bool is_alloc_out_cma_range = false;
+#endif
+/* Metatag(TAG_ACK_MM) end */
 
 	if (!thp_migration_supported() && PageTransHuge(page))
 		return -ENOMEM;
@@ -1183,6 +1244,18 @@ static int unmap_and_move(new_page_t get_new_page,
 	newpage = get_new_page(page, private);
 	if (!newpage)
 		return -ENOMEM;
+/* Metatag(TAG_ACK_MM) begin */
+#ifdef CONFIG_CMA
+	if (forbid_move_to_cma_range(page, newpage) && reason == MR_COMPACTION) {
+		if (put_new_page)
+			put_new_page(newpage, private);
+		newpage = alloc_new_page_out_cma_range(page);
+		if (!newpage)
+			return -ENOMEM;
+		is_alloc_out_cma_range = true;
+	}
+#endif
+/* Metatag(TAG_ACK_MM) end */
 
 	rc = __unmap_and_move(page, newpage, force, mode);
 	if (rc == MIGRATEPAGE_SUCCESS)
@@ -1234,8 +1307,19 @@ out:
 			put_page(page);
 		}
 put_new:
+/* Metatag(TAG_ACK_MM) begin */
+#ifdef CONFIG_CMA
+		if (put_new_page) {
+			if (is_alloc_out_cma_range == true)
+				__free_page(newpage);
+			else
+				put_new_page(newpage, private);
+		}
+#else
+/* Metatag(TAG_ACK_MM) end */
 		if (put_new_page)
 			put_new_page(newpage, private);
+#endif /* Metatag(TAG_ACK_MM) oneline */
 		else
 			put_page(newpage);
 	}
