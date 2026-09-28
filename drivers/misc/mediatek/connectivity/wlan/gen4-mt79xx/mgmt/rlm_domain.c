@@ -10587,17 +10587,10 @@ void rlmDomainU32ToAlpha(u_int32_t u4CountryCode, char *pcAlpha)
 		pcAlpha[ucIdx] = ((u4CountryCode >> (ucIdx * 8)) & 0xff);
 }
 
-#if (CFG_SUPPORT_SINGLE_SKU == 1)
-void rlm_get_alpha2(struct ADAPTER *prAdapter, char *alpha2)
+#if (CFG_SUPPORT_SINGLE_SKU == 1) && (CFG_SUPPORT_MULTI_CARD == 0)
+void rlm_get_alpha2(char *alpha2)
 {
-#if CFG_SUPPORT_MULTI_CARD
-	struct GLUE_INFO *prGlueInfo = prAdapter->prGlueInfo;
-	struct mtk_regd_control *prRegdControl = &prGlueInfo->rMtkRegdControl;
-#else
-	struct mtk_regd_control *prRegdControl = &g_mtk_regd_control;
-#endif
-
-	rlmDomainU32ToAlpha(prRegdControl->alpha2, alpha2);
+	rlmDomainU32ToAlpha(g_mtk_regd_control.alpha2, alpha2);
 }
 EXPORT_SYMBOL(rlm_get_alpha2);
 #endif
