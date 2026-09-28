@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config MTK_WLAN_GEN4_MT79XX
+	tristate "MediaTek MT7902 SDIO Wi-Fi driver"
+	depends on CFG80211 && MMC && m
+	help
+	  MediaTek gen4-mt79xx Wi-Fi driver for the MT7902 SDIO chip.
+
+if MTK_WLAN_GEN4_MT79XX
+
+config MTK_WLAN_GEN4_MT79XX_PREALLOC
+	bool "Preallocated buffer module"
+	default y
+	help
+	  Build wlan_mt7902_sdio_prealloc.ko.
+
+config MTK_WLAN_GEN4_MT79XX_RESET
+	bool "Chip reset module"
+	default y
+	help
+	  Build wlan_mt7902_sdio_reset.ko, which coordinates whole-chip
+	  resets between the Wi-Fi and Bluetooth drivers.
+
+endif # MTK_WLAN_GEN4_MT79XX

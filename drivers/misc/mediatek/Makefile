@@ -53,12 +53,7 @@ obj-$(CONFIG_MTK_IMGSENSOR) += imgsensor/src/
 obj-$(CONFIG_MTK_V4L2_IMGSENSOR) += imgsensor/src-v4l2/
 obj-$(CONFIG_MTK_IOMMU_MISC) += iommu/
 
-HAVE_DEV_PATH := $(if $(wildcard $(srctree)/../../../../device/amazon/common/products/dev-only),true,false)
-ifeq ($(HAVE_DEV_PATH),true)
-	obj-y += connectivity/
-else
-	obj-$(CONFIG_MTK_COMBO) += connectivity/
-endif
+obj-y += connectivity/
 obj-$(CONFIG_MTK_CONN_SCP) += conn_scp/
 obj-$(CONFIG_MTK_BTIF) += btif/
 obj-$(CONFIG_MTK_CONN_MD) += conn_md/
