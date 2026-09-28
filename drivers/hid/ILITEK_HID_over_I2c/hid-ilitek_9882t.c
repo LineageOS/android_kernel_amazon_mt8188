@@ -1538,6 +1538,7 @@ static int mt_input_configured(struct hid_device *hdev, struct hid_input *hi)
 	case HID_DG_STYLUS:
 		/* force BTN_STYLUS to allow tablet matching in udev */
 		__set_bit(BTN_STYLUS, hi->input->keybit);
+		suffix = "Stylus";
 		break;
 	case HID_VD_ASUS_CUSTOM_MEDIA_KEYS:
 		suffix = "Custom Media Keys";
