@@ -2,7 +2,7 @@
 
 config MTK_BTMTK_SDIO_UNIFY
 	tristate "MediaTek linux_v2 Bluetooth driver for SDIO combo chips"
-	depends on MMC && BT && m
+	depends on MMC && BT && MTK_WLAN_GEN4_MT79XX_RESET && m
 	help
 	  MediaTek linux_v2 Bluetooth driver for the MT7902 SDIO chip.
 

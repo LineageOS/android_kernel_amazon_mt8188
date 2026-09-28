@@ -397,4 +397,5 @@ config CONN_PWR_DEBUG
 	  Will support test if set to 'y',
 	  otherwise will not support test.
 
+source "drivers/misc/mediatek/connectivity/bt/linux_v2/Kconfig"
 source "drivers/misc/mediatek/connectivity/wlan/gen4-mt79xx/Kconfig"
