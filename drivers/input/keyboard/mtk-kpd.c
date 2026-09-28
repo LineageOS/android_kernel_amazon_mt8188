@@ -55,6 +55,7 @@ struct mtk_keypad {
 
 #ifdef CONFIG_KPD_VOLUME_KEY_SWAP
 static bool kpd_swap_vol_key;
+module_param_named(swap_vol_key, kpd_swap_vol_key, bool, 0644);
 static u32 kpd_swap_up_code, kpd_swap_down_code;
 static bool kpd_volume_key_hardware_inversed;
 
