@@ -4,6 +4,8 @@
  *
  *  Copyright (C) 1991, 1992  Linus Torvalds
  *
+ *  Copyright 2022 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ *
  * Modified to make sys_syslog() more flexible: added commands to
  * return the last 4k of kernel messages, regardless of whether
  * they've been read or not.  Added option to suppress kernel printk's
@@ -62,6 +64,14 @@
 #include "console_cmdline.h"
 #include "braille.h"
 #include "internal.h"
+
+/*
+ * 0: uart printk enable
+ * 1: uart printk disable
+ */
+int printk_disable_uart;
+
+module_param_named(disable_uart, printk_disable_uart, int, 0644);
 
 int console_printk[4] = {
 	CONSOLE_LOGLEVEL_DEFAULT,	/* console_loglevel */
@@ -427,6 +437,25 @@ static u64 clear_seq;
 static char __log_buf[__LOG_BUF_LEN] __aligned(LOG_ALIGN);
 static char *log_buf = __log_buf;
 static u32 log_buf_len = __LOG_BUF_LEN;
+
+/* console duration detect */
+#ifdef CONFIG_MTK_PRINTK_DEBUG
+struct __conwrite_stat_struct {
+	struct console *con; /* current console */
+	u64 time_before_conwrite; /* the last record before write */
+	u64 time_after_conwrite; /* the last record after write */
+	char con_write_statbuf[512]; /* con write status buf*/
+};
+u64 time_con_write_ttyS;
+u64 len_con_write_ttyS;
+static struct __conwrite_stat_struct conwrite_stat_struct = {
+	.con = NULL,
+	.time_before_conwrite = 0,
+	.time_after_conwrite = 0
+};
+unsigned long rem_nsec_con_write_ttyS;
+bool console_status_detected;
+#endif
 
 /*
  * Define the average message size. This only affects the number of
@@ -1894,6 +1923,9 @@ static void call_console_drivers(const char *ext_text, size_t ext_len,
 	size_t dropped_len = 0;
 	struct console *con;
 
+#ifdef CONFIG_MTK_PRINTK_DEBUG
+	unsigned long interval_con_write = 0;
+#endif
 	trace_console_rcuidle(text, len);
 
 	if (!console_drivers)
@@ -1907,6 +1939,9 @@ static void call_console_drivers(const char *ext_text, size_t ext_len,
 	}
 
 	for_each_console(con) {
+		/* if uart printk disabled */
+		if ((printk_disable_uart == 1) && (con->flags & CON_CONSDEV))
+			continue;
 		if (exclusive_console && con != exclusive_console)
 			continue;
 		if (!(con->flags & CON_ENABLED))
@@ -1921,9 +1956,37 @@ static void call_console_drivers(const char *ext_text, size_t ext_len,
 		else {
 			if (dropped_len)
 				con->write(con, dropped_text, dropped_len);
+#ifdef CONFIG_MTK_PRINTK_DEBUG
+			/* print the uart status next time enter the console_unlock */
+			if (console_status_detected) {
+				con->write(con, conwrite_stat_struct.con_write_statbuf,
+					strlen(conwrite_stat_struct.con_write_statbuf));
+			}
+
+			if (!strcmp(con->name, "ttyS")) {
+				conwrite_stat_struct.con = con;
+				conwrite_stat_struct.time_before_conwrite
+					= local_clock();
+			}
 			con->write(con, text, len);
+			if (!strcmp(con->name, "ttyS")) {
+				conwrite_stat_struct.time_after_conwrite
+					= local_clock();
+				interval_con_write =
+					conwrite_stat_struct.time_after_conwrite -
+					conwrite_stat_struct.time_before_conwrite;
+				time_con_write_ttyS += interval_con_write;
+				len_con_write_ttyS += len;
+			}
+#else
+			con->write(con, text, len);
+#endif
 		}
 	}
+#ifdef CONFIG_MTK_PRINTK_DEBUG
+	if (console_status_detected)
+		console_status_detected = false;
+#endif
 }
 
 int printk_delay_msec __read_mostly;
@@ -1986,12 +2049,20 @@ int vprintk_store(int facility, int level,
 	char *text = textbuf;
 	size_t text_len;
 	enum log_flags lflags = 0;
+#ifdef CONFIG_MTK_PRINTK_DEBUG
+	size_t prefix_len;
+#endif
 
 	/*
 	 * The printf needs to come first; we need the syslog
 	 * prefix which might be passed-in as a parameter.
 	 */
+#ifdef CONFIG_MTK_PRINTK_DEBUG
+	prefix_len = text_len = scnprintf(text, sizeof(textbuf), "%s: ", current->comm);
+	text_len += vscnprintf(&text[prefix_len], sizeof(textbuf) - prefix_len, fmt, args);
+#else
 	text_len = vscnprintf(text, sizeof(textbuf), fmt, args);
+#endif
 
 	/* mark and strip a trailing newline */
 	if (text_len && text[text_len-1] == '\n') {
@@ -2003,7 +2074,11 @@ int vprintk_store(int facility, int level,
 	if (facility == 0) {
 		int kern_level;
 
+#ifdef CONFIG_MTK_PRINTK_DEBUG
+		while ((kern_level = printk_get_level(&text[prefix_len])) != 0) {
+#else
 		while ((kern_level = printk_get_level(text)) != 0) {
+#endif
 			switch (kern_level) {
 			case '0' ... '7':
 				if (level == LOGLEVEL_DEFAULT)
@@ -2013,6 +2088,9 @@ int vprintk_store(int facility, int level,
 				lflags |= LOG_CONT;
 			}
 
+#ifdef CONFIG_MTK_PRINTK_DEBUG
+			memmove(text + 2, text, prefix_len);
+#endif
 			text_len -= 2;
 			text += 2;
 		}
@@ -2023,6 +2101,13 @@ int vprintk_store(int facility, int level,
 
 	if (dev_info)
 		lflags |= LOG_NEWLINE;
+
+#ifdef CONFIG_MTK_PRINTK_DEBUG
+	if (lflags & LOG_CONT) {
+		text += prefix_len;
+		text_len -= prefix_len;
+	}
+#endif
 
 	return log_output(facility, level, lflags, dev_info, text, text_len);
 }
@@ -2454,6 +2539,15 @@ void console_unlock(void)
 	struct printk_info info;
 	struct printk_record r;
 
+#ifdef CONFIG_MTK_PRINTK_DEBUG
+	u64 con_dura_time = local_clock();
+	u64 current_time;
+
+	len_con_write_ttyS = 0;
+	time_con_write_ttyS = 0;
+	rem_nsec_con_write_ttyS = 0;
+#endif
+
 	if (console_suspended) {
 		up_console_sem();
 		return;
@@ -2499,6 +2593,43 @@ again:
 skip:
 		if (!prb_read_valid(prb, console_seq, &r))
 			break;
+
+#ifdef CONFIG_MTK_PRINTK_DEBUG
+		/* console_unlock block time over 2 seconds */
+		current_time = local_clock();
+		if ((current_time - con_dura_time) > 2000000000ULL) {
+			unsigned long tmp_rem_nsec_start = 0,
+				tmp_rem_nsec_end = 0;
+			console_status_detected = true;
+
+			rem_nsec_con_write_ttyS = do_div
+				(time_con_write_ttyS, 1000000000);
+			tmp_rem_nsec_start = do_div(con_dura_time, 1000000000);
+			tmp_rem_nsec_end = do_div(current_time, 1000000000);
+			memset(conwrite_stat_struct.con_write_statbuf, 0x0,
+				sizeof(conwrite_stat_struct.con_write_statbuf)
+				- 1);
+			if (snprintf(conwrite_stat_struct.con_write_statbuf,
+				sizeof(conwrite_stat_struct.con_write_statbuf)
+				- 1,
+"cpu%d [%lu.%06lu]--[%lu.%06lu] 'ttyS' %lubytes %lu.%06lus, uart dump:%s\n",
+				smp_processor_id(),
+				(unsigned long)con_dura_time,
+				tmp_rem_nsec_start/1000,
+				(unsigned long)current_time,
+				tmp_rem_nsec_end/1000,
+				(unsigned long)len_con_write_ttyS,
+				(unsigned long)time_con_write_ttyS,
+				rem_nsec_con_write_ttyS/1000,
+				"") < 0) {
+				conwrite_stat_struct.con_write_statbuf[0] = 'N';
+				conwrite_stat_struct.con_write_statbuf[1] = 'A';
+				conwrite_stat_struct.con_write_statbuf[2] = '\0';
+			}
+			con_dura_time = local_clock();
+			break;
+		}
+#endif
 
 		if (console_seq != r.info->seq) {
 			console_dropped += r.info->seq - console_seq;

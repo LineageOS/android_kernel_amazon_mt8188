@@ -5,6 +5,7 @@
  * Copyright (c) 2003 Patrick Mochel
  * Copyright (c) 2003 Open Source Development Lab
  * Copyright (c) 2009 Rafael J. Wysocki <rjw@sisk.pl>, Novell Inc.
+ * Copyright (c) 2022 Amazon.com, Inc. or its affiliates.  All rights reserved.
  */
 
 #define pr_fmt(fmt) "PM: " fmt
@@ -440,6 +441,7 @@ static int suspend_enter(suspend_state_t state, bool *wakeup)
 	BUG_ON(!irqs_disabled());
 
 	system_state = SYSTEM_SUSPEND;
+	pr_notice("[METRICS_STANDBY] Device suspend enter\n");
 
 	error = syscore_suspend();
 	if (!error) {
@@ -450,6 +452,7 @@ static int suspend_enter(suspend_state_t state, bool *wakeup)
 			error = suspend_ops->enter(state);
 			trace_suspend_resume(TPS("machine_suspend"),
 				state, false);
+				pr_notice("[METRICS_STANDBY] Device suspend exit\n");
 		} else if (*wakeup) {
 			error = -EBUSY;
 		}

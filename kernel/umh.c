@@ -367,7 +367,13 @@ struct subprocess_info *call_usermodehelper_setup(const char *path, char **argv,
 	INIT_WORK(&sub_info->work, call_usermodehelper_exec_work);
 
 #ifdef CONFIG_STATIC_USERMODEHELPER
-	sub_info->path = CONFIG_STATIC_USERMODEHELPER_PATH;
+	if (path && strstr(CONFIG_STATIC_USERMODEHELPER_PATH, path)) {
+		sub_info->path = path;
+	} else {
+		pr_warn("%s is not in usermodehelper safe list\n",
+			path ? path : "NONE");
+		sub_info->path = "/sbin/usermode-helper";
+	}
 #else
 	sub_info->path = path;
 #endif

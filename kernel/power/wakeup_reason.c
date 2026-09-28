@@ -246,6 +246,33 @@ void log_suspend_abort_reason(const char *fmt, ...)
 }
 EXPORT_SYMBOL_GPL(log_suspend_abort_reason);
 
+int get_irq_wakeup_source(int src_irq[], int len)
+{
+	struct wakeup_irq_node *n;
+	unsigned long flags;
+	int ret = 0;
+	int i = 0;
+
+	if (src_irq == NULL || len == 0 ||
+		wakeup_reason != RESUME_IRQ)
+		return ret;
+
+	spin_lock_irqsave(&wakeup_reason_lock, flags);
+
+	if (!list_empty(&leaf_irqs)) {
+		list_for_each_entry(n, &leaf_irqs, siblings) {
+			src_irq[i++] = n->irq;
+			if (i >= len)
+				break;
+		}
+		ret = i;
+	}
+
+	spin_unlock_irqrestore(&wakeup_reason_lock, flags);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(get_irq_wakeup_source);
+
 void log_abnormal_wakeup_reason(const char *fmt, ...)
 {
 	va_list args;

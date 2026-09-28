@@ -991,6 +991,7 @@ int ring_buffer_wait(struct trace_buffer *buffer, int cpu, int full)
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(ring_buffer_wait);
 
 /**
  * ring_buffer_poll_wait - poll on buffer input
@@ -1076,6 +1077,7 @@ __poll_t ring_buffer_poll_wait(struct trace_buffer *buffer, int cpu,
 		return EPOLLIN | EPOLLRDNORM;
 	return 0;
 }
+EXPORT_SYMBOL_GPL(ring_buffer_poll_wait);
 
 /* buffer may be either ring_buffer or ring_buffer_per_cpu */
 #define RB_WARN_ON(b, cond)						\
