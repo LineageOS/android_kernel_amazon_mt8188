@@ -552,6 +552,12 @@ static int btmtk_handle_leaving_WoBLE_state(struct btmtk_woble *bt_woble)
 	return 0;
 #endif
 
+	/* Nothing was sent on suspend, so there is nothing to undo */
+	if (!is_support_unify_woble(bdev)) {
+		BTMTK_WARN("%s: not support woble, do nothing!", __func__);
+		return 0;
+	}
+
 	fstate = btmtk_fops_get_state(bdev);
 	if (!bdev->bt_cfg.support_woble_for_bt_disable) {
 		if (fstate != BTMTK_FOPS_STATE_OPENED) {
@@ -630,6 +636,11 @@ static int btmtk_handle_entering_WoBLE_state(struct btmtk_woble *bt_woble)
 	BTMTK_INFO("not support woble mode for wakeup bt irq");
 	return 0;
 #endif
+
+	if (!is_support_unify_woble(bdev)) {
+		BTMTK_WARN("%s: not support woble, do nothing!", __func__);
+		return 0;
+	}
 
 	fstate = btmtk_fops_get_state(bdev);
 	if (!bdev->bt_cfg.support_woble_for_bt_disable) {
@@ -761,6 +772,10 @@ int btmtk_woble_resume(struct btmtk_woble *bt_woble)
 	struct btmtk_main_info *bmain_info = btmtk_get_main_info();
 
 	BTMTK_INFO("%s: enter", __func__);
+	if (bdev == NULL) {
+		BTMTK_WARN("%s: bdev is NULL", __func__);
+		goto exit;
+	}
 	fstate = btmtk_fops_get_state(bdev);
 
 	if (!is_support_unify_woble(bdev) && (fstate != BTMTK_FOPS_STATE_OPENED)) {
