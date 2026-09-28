@@ -68,6 +68,38 @@ static void mt6359_reset_capture_gpio(struct mt6359_priv *priv)
 			   0x3 << 0, 0x0);
 }
 
+/* use only when doing mtkaif calibraiton at the boot time */
+static void mt6359_set_dcxo(struct mt6359_priv *priv, bool enable)
+{
+	regmap_update_bits(priv->regmap, MT6359_DCXO_CW12,
+			   0x1 << RG_XO_AUDIO_EN_M_SFT,
+			   (enable ? 1 : 0) << RG_XO_AUDIO_EN_M_SFT);
+}
+
+/* use only when doing mtkaif calibraiton at the boot time */
+static void mt6359_set_clksq(struct mt6359_priv *priv, bool enable)
+{
+	/* Enable/disable CLKSQ 26MHz */
+	regmap_update_bits(priv->regmap, MT6359_AUDENC_ANA_CON23,
+			   RG_CLKSQ_EN_MASK_SFT,
+			   (enable ? 1 : 0) << RG_CLKSQ_EN_SFT);
+}
+
+/* use only when doing mtkaif calibraiton at the boot time */
+static void mt6359_set_aud_global_bias(struct mt6359_priv *priv, bool enable)
+{
+	regmap_update_bits(priv->regmap, MT6359_AUDDEC_ANA_CON13,
+			   RG_AUDGLB_PWRDN_VA32_MASK_SFT,
+			   (enable ? 0 : 1) << RG_AUDGLB_PWRDN_VA32_SFT);
+}
+
+/* use only when doing mtkaif calibraiton at the boot time */
+static void mt6359_set_topck(struct mt6359_priv *priv, bool enable)
+{
+	regmap_update_bits(priv->regmap, MT6359_AUD_TOP_CKPDN_CON0,
+			   0x0066, enable ? 0x0 : 0x66);
+}
+
 static void mt6359_set_decoder_clk(struct mt6359_priv *priv, bool enable)
 {
 	regmap_update_bits(priv->regmap, MT6359_AUDDEC_ANA_CON13,
@@ -122,6 +154,84 @@ static void mt6359_mtkaif_tx_disable(struct mt6359_priv *priv)
 			   0xff00, 0x3000);
 }
 
+void mt6359_set_mtkaif_protocol(struct snd_soc_component *cmpnt,
+				int mtkaif_protocol)
+{
+	struct mt6359_priv *priv = snd_soc_component_get_drvdata(cmpnt);
+
+	priv->mtkaif_protocol = mtkaif_protocol;
+}
+EXPORT_SYMBOL_GPL(mt6359_set_mtkaif_protocol);
+
+void mt6359_mtkaif_calibration_enable(struct snd_soc_component *cmpnt)
+{
+	struct mt6359_priv *priv = snd_soc_component_get_drvdata(cmpnt);
+
+	mt6359_set_playback_gpio(priv);
+	mt6359_set_capture_gpio(priv);
+	mt6359_mtkaif_tx_enable(priv);
+
+	mt6359_set_dcxo(priv, true);
+	mt6359_set_aud_global_bias(priv, true);
+	mt6359_set_clksq(priv, true);
+	mt6359_set_topck(priv, true);
+
+	/* set dat_miso_loopback on */
+	regmap_update_bits(priv->regmap, MT6359_AUDIO_DIG_CFG,
+			   RG_AUD_PAD_TOP_DAT_MISO2_LOOPBACK_MASK_SFT,
+			   1 << RG_AUD_PAD_TOP_DAT_MISO2_LOOPBACK_SFT);
+	regmap_update_bits(priv->regmap, MT6359_AUDIO_DIG_CFG,
+			   RG_AUD_PAD_TOP_DAT_MISO_LOOPBACK_MASK_SFT,
+			   1 << RG_AUD_PAD_TOP_DAT_MISO_LOOPBACK_SFT);
+	regmap_update_bits(priv->regmap, MT6359_AUDIO_DIG_CFG1,
+			   RG_AUD_PAD_TOP_DAT_MISO3_LOOPBACK_MASK_SFT,
+			   1 << RG_AUD_PAD_TOP_DAT_MISO3_LOOPBACK_SFT);
+}
+EXPORT_SYMBOL_GPL(mt6359_mtkaif_calibration_enable);
+
+void mt6359_mtkaif_calibration_disable(struct snd_soc_component *cmpnt)
+{
+	struct mt6359_priv *priv = snd_soc_component_get_drvdata(cmpnt);
+
+	/* set dat_miso_loopback off */
+	regmap_update_bits(priv->regmap, MT6359_AUDIO_DIG_CFG,
+			   RG_AUD_PAD_TOP_DAT_MISO2_LOOPBACK_MASK_SFT,
+			   0 << RG_AUD_PAD_TOP_DAT_MISO2_LOOPBACK_SFT);
+	regmap_update_bits(priv->regmap, MT6359_AUDIO_DIG_CFG,
+			   RG_AUD_PAD_TOP_DAT_MISO_LOOPBACK_MASK_SFT,
+			   0 << RG_AUD_PAD_TOP_DAT_MISO_LOOPBACK_SFT);
+	regmap_update_bits(priv->regmap, MT6359_AUDIO_DIG_CFG1,
+			   RG_AUD_PAD_TOP_DAT_MISO3_LOOPBACK_MASK_SFT,
+			   0 << RG_AUD_PAD_TOP_DAT_MISO3_LOOPBACK_SFT);
+
+	mt6359_set_topck(priv, false);
+	mt6359_set_clksq(priv, false);
+	mt6359_set_aud_global_bias(priv, false);
+	mt6359_set_dcxo(priv, false);
+
+	mt6359_mtkaif_tx_disable(priv);
+	mt6359_reset_playback_gpio(priv);
+	mt6359_reset_capture_gpio(priv);
+}
+EXPORT_SYMBOL_GPL(mt6359_mtkaif_calibration_disable);
+
+void mt6359_set_mtkaif_calibration_phase(struct snd_soc_component *cmpnt,
+					 int phase_1, int phase_2, int phase_3)
+{
+	struct mt6359_priv *priv = snd_soc_component_get_drvdata(cmpnt);
+
+	regmap_update_bits(priv->regmap, MT6359_AUDIO_DIG_CFG,
+			   RG_AUD_PAD_TOP_PHASE_MODE_MASK_SFT,
+			   phase_1 << RG_AUD_PAD_TOP_PHASE_MODE_SFT);
+	regmap_update_bits(priv->regmap, MT6359_AUDIO_DIG_CFG,
+			   RG_AUD_PAD_TOP_PHASE_MODE2_MASK_SFT,
+			   phase_2 << RG_AUD_PAD_TOP_PHASE_MODE2_SFT);
+	regmap_update_bits(priv->regmap, MT6359_AUDIO_DIG_CFG1,
+			   RG_AUD_PAD_TOP_PHASE_MODE3_MASK_SFT,
+			   phase_3 << RG_AUD_PAD_TOP_PHASE_MODE3_SFT);
+}
+EXPORT_SYMBOL_GPL(mt6359_set_mtkaif_calibration_phase);
+
 static void zcd_disable(struct mt6359_priv *priv)
 {
 	regmap_write(priv->regmap, MT6359_ZCD_CON0, 0x0000);
@@ -129,7 +239,7 @@ static void zcd_disable(struct mt6359_priv *priv)
 
 static void hp_main_output_ramp(struct mt6359_priv *priv, bool up)
 {
-	int i = 0, stage = 0;
+	int i, stage;
 	int target = 7;
 
 	/* Enable/Reduce HPL/R main output stage step by step */
@@ -147,7 +257,7 @@ static void hp_main_output_ramp(struct mt6359_priv *priv, bool up)
 
 static void hp_aux_feedback_loop_gain_ramp(struct mt6359_priv *priv, bool up)
 {
-	int i = 0, stage = 0;
+	int i, stage;
 	int target = 0xf;
 
 	/* Enable/Reduce HP aux feedback loop gain step by step */
@@ -161,7 +271,7 @@ static void hp_aux_feedback_loop_gain_ramp(struct mt6359_priv *priv, bool up)
 
 static void hp_in_pair_current(struct mt6359_priv *priv, bool increase)
 {
-	int i = 0, stage = 0;
+	int i, stage;
 	int target = 0x3;
 
 	/* Set input diff pair bias select (Hi-Fi mode) */
@@ -205,38 +315,67 @@ static bool is_valid_hp_pga_idx(int reg_idx)
 }
 
 static void headset_volume_ramp(struct mt6359_priv *priv,
-				int from, int to)
+				int from_l, int from_r,
+				int to_l, int to_r)
 {
-	int offset = 0, count = 1, reg_idx;
+	int offset_l = 0, offset_r = 0;
+	int count_l = 1, count_r = 1;
+	int reg_idx_l, reg_idx_r;
 
-	if (!is_valid_hp_pga_idx(from) || !is_valid_hp_pga_idx(to)) {
-		dev_warn(priv->dev, "%s(), volume index is not valid, from %d, to %d\n",
-			 __func__, from, to);
+	if (!is_valid_hp_pga_idx(from_l) || !is_valid_hp_pga_idx(from_r) ||
+	    !is_valid_hp_pga_idx(to_l) || !is_valid_hp_pga_idx(to_r)) {
+		dev_info(priv->dev, "%s(), volume index is not valid, from_l %d, from_r %d, to_l %d, to_r %d\n",
+			 __func__, from_l, from_r, to_l, to_r);
 		return;
 	}
 
-	dev_dbg(priv->dev, "%s(), from %d, to %d\n", __func__, from, to);
+	dev_dbg(priv->dev, "%s(), from_l %d, from_r %d, to_l %d, to_r %d\n",
+		__func__, from_l, from_r, to_l, to_r);
 
-	if (to > from)
-		offset = to - from;
+	if (to_l > from_l)
+		offset_l = to_l - from_l;
 	else
-		offset = from - to;
+		offset_l = from_l - to_l;
 
-	while (offset > 0) {
-		if (to > from)
-			reg_idx = from + count;
-		else
-			reg_idx = from - count;
+	if (to_r > from_r)
+		offset_r = to_r - from_r;
+	else
+		offset_r = from_r - to_r;
 
-		if (is_valid_hp_pga_idx(reg_idx)) {
-			regmap_update_bits(priv->regmap,
-					   MT6359_ZCD_CON2,
-					   DL_GAIN_REG_MASK,
-					   (reg_idx << 7) | reg_idx);
-			usleep_range(600, 650);
+	while (offset_l > 0 || offset_r > 0) {
+		if (offset_l > 0) {
+			if (to_l > from_l)
+				reg_idx_l = from_l + count_l;
+			else
+				reg_idx_l = from_l - count_l;
+
+			if (is_valid_hp_pga_idx(reg_idx_l))
+				regmap_update_bits(priv->regmap,
+						   MT6359_ZCD_CON2,
+						   RG_AUDHPLGAIN_MASK_SFT,
+						   reg_idx_l << RG_AUDHPLGAIN_SFT);
+
+			offset_l--;
+			count_l++;
 		}
-		offset--;
-		count++;
+
+		if (offset_r > 0) {
+			if (to_r > from_r)
+				reg_idx_r = from_r + count_r;
+			else
+				reg_idx_r = from_r - count_r;
+
+			if (is_valid_hp_pga_idx(reg_idx_r))
+				regmap_update_bits(priv->regmap,
+						   MT6359_ZCD_CON2,
+						   RG_AUDHPRGAIN_MASK_SFT,
+						   reg_idx_r << RG_AUDHPRGAIN_SFT);
+
+			offset_r--;
+			count_r++;
+		}
+
+		usleep_range(600, 650);
 	}
 }
 
@@ -295,6 +434,77 @@ static int mt6359_put_volsw(struct snd_kcontrol *kcontrol,
 
 	dev_dbg(priv->dev, "%s(), name %s, reg(0x%x) = 0x%x, set index = %x\n",
 		__func__, kcontrol->id.name, mc->reg, reg, index);
+
+	return ret;
+}
+
+#if IS_ENABLED(CONFIG_IDME)
+static bool spk_codec_gain_cal_vaild_check(char *codec_gain)
+{
+	int i;
+
+	for (i = 0; i < sizeof(SpkMaxCodecGainVaildValues); i++) {
+		if (codec_gain[0] == SpkMaxCodecGainVaildValues[i])
+			return true;
+	}
+
+	return false;
+}
+
+/* leftgain/rightgain is gain index,corresponding relationship.
+ * The smaller the index, the larger the actual dB.
+ * gain index|gain db
+ * 0		  8dB
+ * 1		  7dB
+ * 2		  6dB
+ * ...
+ * 30		  -22dB
+ */
+static bool gain_uplimit_check_and_set(long *leftgain, long *rightgain, struct snd_soc_component *component)
+{
+	struct mt6359_priv *priv = snd_soc_component_get_drvdata(component);
+
+	if ((priv->spk_codec_gain_cal_l != -1) && (priv->spk_codec_gain_cal_r != -1)) {
+		/* the value here is codec gain index, the less the gain index the more the
+		 * final gain value.apply the calibration value if the codec gain configuration
+		 * is less than calibration value.
+		 */
+		if (*leftgain < priv->spk_codec_gain_cal_l) {
+			*leftgain = priv->spk_codec_gain_cal_l;
+			pr_debug("%s:left origin gain:%d > idme gain:%d,apply spk codec gain from idme\n",
+						__func__, *leftgain, priv->spk_codec_gain_cal_l);
+		}
+		if (*rightgain < priv->spk_codec_gain_cal_r) {
+			*rightgain = priv->spk_codec_gain_cal_r;
+			pr_debug("%s:right origin gain:%d > idme gain:%d,apply spk codec gain from idme\n",
+						__func__, *rightgain, priv->spk_codec_gain_cal_r);
+		}
+	} else {
+		return false;
+	}
+
+	return true;
+}
+#endif
+
+static int mt6359_put_volsw_spk(struct snd_kcontrol *kcontrol,
+			    struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *component =
+			snd_soc_kcontrol_component(kcontrol);
+	struct soc_mixer_control *mc =
+			(struct soc_mixer_control *)kcontrol->private_value;
+	int ret;
+
+	if (mc->reg == MT6359_ZCD_CON2) {
+#if IS_ENABLED(CONFIG_IDME)
+		if (gain_uplimit_check_and_set(&ucontrol->value.integer.value[0], &ucontrol->value.integer.value[1], component))
+			pr_debug("%s gain uplimit check set done\n", __func__);
+		else
+			pr_warn("%s gain uplimit check set fail\n", __func__);
+#endif
+	}
+	ret = mt6359_put_volsw(kcontrol,ucontrol);
 
 	return ret;
 }
@@ -733,8 +943,9 @@ static void mtk_hp_enable(struct mt6359_priv *priv)
 
 	/* apply volume setting */
 	headset_volume_ramp(priv,
-			    DL_GAIN_N_22DB,
-			    priv->ana_gain[AUDIO_ANALOG_VOLUME_HPOUTL]);
+			    DL_GAIN_N_22DB, DL_GAIN_N_22DB,
+			    priv->ana_gain[AUDIO_ANALOG_VOLUME_HPOUTL],
+			    priv->ana_gain[AUDIO_ANALOG_VOLUME_HPOUTR]);
 
 	/* Disable HP aux output stage */
 	regmap_write(priv->regmap, MT6359_AUDDEC_ANA_CON1, 0x77c3);
@@ -793,7 +1004,8 @@ static void mtk_hp_disable(struct mt6359_priv *priv)
 	/* decrease HPL/R gain to normal gain step by step */
 	headset_volume_ramp(priv,
 			    priv->ana_gain[AUDIO_ANALOG_VOLUME_HPOUTL],
-			    DL_GAIN_N_22DB);
+			    priv->ana_gain[AUDIO_ANALOG_VOLUME_HPOUTR],
+			    DL_GAIN_N_22DB, DL_GAIN_N_22DB);
 
 	/* Enable HP aux feedback loop */
 	regmap_write(priv->regmap, MT6359_AUDDEC_ANA_CON1, 0x77ff);
@@ -1833,9 +2045,6 @@ static const struct snd_soc_dapm_widget mt6359_dapm_widgets[] = {
 	SND_SOC_DAPM_SUPPLY_S("CLK_BUF", SUPPLY_SEQ_CLK_BUF,
 			      MT6359_DCXO_CW12,
 			      RG_XO_AUDIO_EN_M_SFT, 0, NULL, 0),
-	SND_SOC_DAPM_SUPPLY_S("LDO_VAUD18", SUPPLY_SEQ_LDO_VAUD18,
-			      MT6359_LDO_VAUD18_CON0,
-			      RG_LDO_VAUD18_EN_SFT, 0, NULL, 0),
 	SND_SOC_DAPM_SUPPLY_S("AUDGLB", SUPPLY_SEQ_AUD_GLB,
 			      MT6359_AUDDEC_ANA_CON13,
 			      RG_AUDGLB_PWRDN_VA32_SFT, 1, NULL, 0),
@@ -1855,6 +2064,8 @@ static const struct snd_soc_dapm_widget mt6359_dapm_widgets[] = {
 	SND_SOC_DAPM_SUPPLY_S("AUDIF_CK", SUPPLY_SEQ_TOP_CK,
 			      MT6359_AUD_TOP_CKPDN_CON0,
 			      RG_AUDIF_CK_PDN_SFT, 1, NULL, 0),
+	SND_SOC_DAPM_REGULATOR_SUPPLY("vaud18", 0, 0),
+
 	/* Digital Clock */
 	SND_SOC_DAPM_SUPPLY_S("AUDIO_TOP_AFE_CTL", SUPPLY_SEQ_AUD_TOP_LAST,
 			      MT6359_AUDIO_TOP_CON0,
@@ -2204,7 +2415,7 @@ static int mt_dcc_clk_connect(struct snd_soc_dapm_widget *source,
 static const struct snd_soc_dapm_route mt6359_dapm_routes[] = {
 	/* Capture */
 	{"AIFTX_Supply", NULL, "CLK_BUF"},
-	{"AIFTX_Supply", NULL, "LDO_VAUD18"},
+	{"AIFTX_Supply", NULL, "vaud18"},
 	{"AIFTX_Supply", NULL, "AUDGLB"},
 	{"AIFTX_Supply", NULL, "CLKSQ Audio"},
 	{"AIFTX_Supply", NULL, "AUD_CK"},
@@ -2332,7 +2543,7 @@ static const struct snd_soc_dapm_route mt6359_dapm_routes[] = {
 
 	/* DL Supply */
 	{"DL Power Supply", NULL, "CLK_BUF"},
-	{"DL Power Supply", NULL, "LDO_VAUD18"},
+	{"DL Power Supply", NULL, "vaud18"},
 	{"DL Power Supply", NULL, "AUDGLB"},
 	{"DL Power Supply", NULL, "CLKSQ Audio"},
 	{"DL Power Supply", NULL, "AUDNCP_CK"},
@@ -2580,15 +2791,47 @@ static int mt6359_codec_init_reg(struct snd_soc_component *cmpnt)
 static int mt6359_codec_probe(struct snd_soc_component *cmpnt)
 {
 	struct mt6359_priv *priv = snd_soc_component_get_drvdata(cmpnt);
+	struct device_node *idme_node = NULL;
+	char *codec_gain_cal = NULL;
 
 	snd_soc_component_init_regmap(cmpnt, priv->regmap);
+
+#if IS_ENABLED(CONFIG_IDME)
+	idme_node = of_find_node_by_path(SPK_CODEC_GAIN_CAL_L);
+	priv->spk_codec_gain_cal_l = -1;
+	if (idme_node) {
+		codec_gain_cal = (char *)of_get_property(idme_node, "value", NULL);
+		if ((codec_gain_cal != NULL) && spk_codec_gain_cal_vaild_check(codec_gain_cal)) {
+			priv->spk_codec_gain_cal_l = codec_gain_cal[0] - '0';
+			pr_info("%s: left spk calibration codec gain %s\n", __func__, codec_gain_cal);
+		} else {
+			pr_err("%s: spk_codec_gain_cal_l is NULL or invaild value\n", __func__);
+		}
+	} else {
+		pr_err("%s: Not find node %s.\n", __func__, SPK_CODEC_GAIN_CAL_L);
+	}
+
+	idme_node = of_find_node_by_path(SPK_CODEC_GAIN_CAL_R);
+	priv->spk_codec_gain_cal_r = -1;
+	if (idme_node) {
+		codec_gain_cal = (char *)of_get_property(idme_node, "value", NULL);
+		if ((codec_gain_cal != NULL) && spk_codec_gain_cal_vaild_check(codec_gain_cal)) {
+			priv->spk_codec_gain_cal_r = codec_gain_cal[0] - '0';
+			pr_info("%s: right spk calibration codec gain %s\n", __func__, codec_gain_cal);
+		} else {
+			pr_err("%s: spk_codec_gain_cal_r is NULL or invaild value\n", __func__);
+		}
+	} else {
+		pr_err("%s: Not find node %s.\n", __func__, SPK_CODEC_GAIN_CAL_L);
+	}
+#endif
 
 	return mt6359_codec_init_reg(cmpnt);
 }
 
 static void mt6359_codec_remove(struct snd_soc_component *cmpnt)
 {
-	snd_soc_component_exit_regmap(cmpnt);
+	cmpnt->regmap = NULL;
 }
 
 static const DECLARE_TLV_DB_SCALE(hp_playback_tlv, -2200, 100, 0);
@@ -2607,6 +2850,9 @@ static const struct snd_kcontrol_new mt6359_snd_controls[] = {
 	SOC_SINGLE_EXT_TLV("Handset Volume",
 			   MT6359_ZCD_CON3, 0, 0x12, 0,
 			   snd_soc_get_volsw, mt6359_put_volsw, playback_tlv),
+	SOC_DOUBLE_EXT_TLV("Speaker_Volume_Cust",
+			   MT6359_ZCD_CON2, 0, 7, 0x1E, 0,
+			   snd_soc_get_volsw, mt6359_put_volsw_spk, hp_playback_tlv),
 
 	/* ul pga gain */
 	SOC_SINGLE_EXT_TLV("PGA1 Volume",
@@ -2645,7 +2891,8 @@ static int mt6359_parse_dt(struct mt6359_priv *priv)
 	ret = of_property_read_u32(np, "mediatek,dmic-mode",
 				   &priv->dmic_one_wire_mode);
 	if (ret) {
-		dev_warn(priv->dev, "%s() failed to read dmic-mode\n",
+		dev_info(priv->dev,
+			 "%s() failed to read dmic-mode, use default (0)\n",
 			 __func__);
 		priv->dmic_one_wire_mode = 0;
 	}
@@ -2653,24 +2900,27 @@ static int mt6359_parse_dt(struct mt6359_priv *priv)
 	ret = of_property_read_u32(np, "mediatek,mic-type-0",
 				   &priv->mux_select[MUX_MIC_TYPE_0]);
 	if (ret) {
-		dev_warn(priv->dev, "%s() failed to read mic-type-0\n",
-			 __func__);
+		dev_info(priv->dev,
+			 "%s() failed to read mic-type-0, use default (%d)\n",
+			 __func__, MIC_TYPE_MUX_IDLE);
 		priv->mux_select[MUX_MIC_TYPE_0] = MIC_TYPE_MUX_IDLE;
 	}
 
 	ret = of_property_read_u32(np, "mediatek,mic-type-1",
 				   &priv->mux_select[MUX_MIC_TYPE_1]);
 	if (ret) {
-		dev_warn(priv->dev, "%s() failed to read mic-type-1\n",
-			 __func__);
+		dev_info(priv->dev,
+			 "%s() failed to read mic-type-1, use default (%d)\n",
+			 __func__, MIC_TYPE_MUX_IDLE);
 		priv->mux_select[MUX_MIC_TYPE_1] = MIC_TYPE_MUX_IDLE;
 	}
 
 	ret = of_property_read_u32(np, "mediatek,mic-type-2",
 				   &priv->mux_select[MUX_MIC_TYPE_2]);
 	if (ret) {
-		dev_warn(priv->dev, "%s() failed to read mic-type-2\n",
-			 __func__);
+		dev_info(priv->dev,
+			 "%s() failed to read mic-type-2, use default (%d)\n",
+			 __func__, MIC_TYPE_MUX_IDLE);
 		priv->mux_select[MUX_MIC_TYPE_2] = MIC_TYPE_MUX_IDLE;
 	}
 
@@ -2697,20 +2947,6 @@ static int mt6359_platform_driver_probe(struct platform_device *pdev)
 	dev_set_drvdata(&pdev->dev, priv);
 	priv->dev = &pdev->dev;
 
-	priv->avdd_reg = devm_regulator_get(&pdev->dev, "vaud18");
-	if (IS_ERR(priv->avdd_reg)) {
-		dev_err(&pdev->dev, "%s(), have no vaud18 supply: %ld",
-			__func__, PTR_ERR(priv->avdd_reg));
-		return PTR_ERR(priv->avdd_reg);
-	}
-
-	ret = regulator_enable(priv->avdd_reg);
-	if (ret) {
-		dev_err(&pdev->dev, "%s(), failed to enable regulator!\n",
-			__func__);
-		return ret;
-	}
-
 	ret = mt6359_parse_dt(priv);
 	if (ret) {
 		dev_warn(&pdev->dev, "%s() failed to parse dts\n", __func__);
@@ -2723,30 +2959,11 @@ static int mt6359_platform_driver_probe(struct platform_device *pdev)
 					       ARRAY_SIZE(mt6359_dai_driver));
 }
 
-static int mt6359_platform_driver_remove(struct platform_device *pdev)
-{
-	struct mt6359_priv *priv = dev_get_drvdata(&pdev->dev);
-	int ret;
-
-	dev_dbg(&pdev->dev, "%s(), dev name %s\n",
-		__func__, dev_name(&pdev->dev));
-
-	ret = regulator_disable(priv->avdd_reg);
-	if (ret) {
-		dev_err(&pdev->dev, "%s(), failed to disable regulator!\n",
-			__func__);
-		return ret;
-	}
-
-	return 0;
-}
-
 static struct platform_driver mt6359_platform_driver = {
 	.driver = {
 		.name = "mt6359-sound",
 	},
 	.probe = mt6359_platform_driver_probe,
-	.remove = mt6359_platform_driver_remove,
 };
 
 module_platform_driver(mt6359_platform_driver)
