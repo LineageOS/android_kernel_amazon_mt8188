@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config MTK_BTMTK_SDIO_UNIFY
+	tristate "MediaTek linux_v2 Bluetooth driver for SDIO combo chips"
+	depends on MMC && BT && m
+	help
+	  MediaTek linux_v2 Bluetooth driver for the MT7902 SDIO chip.
+
+config MTK_BTMTK_SDIO_UNIFY_DEBUG
+	bool "linux_v2 Bluetooth debug features"
+	depends on MTK_BTMTK_SDIO_UNIFY
+	help
+	  Enable the debug features of MediaTek's non-user builds.
