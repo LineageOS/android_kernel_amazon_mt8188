@@ -1,5 +1,3 @@
-$(info $$MTK_COMBO_CHIP is [MT7902])
-
 ccflags-y:=$(filter-out -UMT7902,$(ccflags-y))
 ccflags-y += -DMT7902
 CONFIG_SDIO_INTR_ENHANCE_FORMAT=2

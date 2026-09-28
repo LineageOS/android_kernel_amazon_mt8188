@@ -1,5 +1,3 @@
-$(info dev config)
-
 CONFIG_CONNAC2_LISTMODE_ENABLE=n
 # For Pwr table compatibility
 CONFIG_MTK_WIFI_TXPWR_DAT_FN=y

@@ -7,6 +7,8 @@ BRANCH				:= android12-5.10
 CONFIG_GKI_SUPPORT		:= y
 DRIVER_BUILD_DATE		:= $(KERNELRELEASE)
 
+ccflags-y			+= -Wno-\#pragma-messages
+
 MODULE_NAME			:= wlan_mt7902_sdio
 MODULE_NAME_PREALLOC		:= $(MODULE_NAME)_prealloc
 MODULE_NAME_RESET		:= $(MODULE_NAME)_reset

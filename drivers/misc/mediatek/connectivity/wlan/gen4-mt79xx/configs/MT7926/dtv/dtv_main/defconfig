@@ -1,4 +1,3 @@
-$(warning MTK_ANDROID_VERSION=$(MTK_ANDROID_VERSION))
 # now for android V, MTK_ANDROID_VERSION is not define
 ifndef MTK_ANDROID_VERSION
 MTK_ANDROID_VERSION = v-base

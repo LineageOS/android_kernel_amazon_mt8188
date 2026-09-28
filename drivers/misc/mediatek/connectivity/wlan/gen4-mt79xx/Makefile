@@ -6,26 +6,6 @@ else
     #TOP := $(srctree)/..
 endif
 src:=$(if $(filter /%,$(src)),,$(srctree)/)$(src)
-$(info src=$(src))
-$(info srctree=$(srctree))
-$(info DEVICE_MODULES_PATH=$(DEVICE_MODULES_PATH))
-
-
-# ---------------------------------------------------
-# Kbuild option
-# ---------------------------------------------------
-ifeq ($(CONFIG_MTK_COMBO_WIFI_HIF),)
-ifneq ($(src),)
-ifneq ($(srctree),)
-CONFIG_MTK_COMBO_WIFI_HIF=pcie
-include $(srctree)/$(src)/Makefile.x86
-src:=$(srctree)/$(shell echo ${src})
-MTK_COMBO_CHIP=MT7961
-$(info Kbuild chip: $(MTK_COMBO_CHIP))
-$(info Kbuild hif : $(CONFIG_MTK_COMBO_WIFI_HIF))
-endif
-endif
-endif
 
 WM_RAM ?=
 CFG_PROJECT ?=
@@ -52,8 +32,6 @@ ccflags-y += -DCFG_VIRTUAL_OS
 ccflags-y += -DCFG_REMIND_IMPLEMENT
 endif
 
-$(info os option: $(os))
-
 ifeq ($(os), none)
 kver_ge = $(shell echo 1)
 else
@@ -68,7 +46,6 @@ if($(SUBLEVEL) < $(3)) {print 0} else {print 1} \
 }}}}}' \
 )
 endif
-$(info ker ver : $(VERSION), PATCHLEVEL : $(PATCHLEVEL), SUBLEVEL : $(SUBLEVEL))
 # ---------------------------------------------------
 # ALPS Setting
 # ---------------------------------------------------
@@ -109,17 +86,6 @@ else ifeq ($(MTK_COMBO_CHIP),MT)
 endif
 
 MTK_PLATFORM := $(subst ",,$(CONFIG_MTK_PLATFORM))
-
-ifneq ($(MTK_PLATFORM),)
-$(info $$MTK_PLATFORM is [${MTK_PLATFORM}])
-endif
-ifneq ($(WM_RAM),)
-$(info $$WM_RAM is [${WM_RAM}])
-endif
-ifneq ($(CFG_PROJECT),)
-$(info $$CFG_PROJECT is [${CFG_PROJECT}])
-endif
-
 
 # ===== Before is project setting =====
 ifneq ($(wildcard $(CFG_DIR)/defconfig),)
@@ -972,13 +938,11 @@ endif
 
 ifneq ($(CFG_CFG80211_VERSION),)
 VERSION_STR = $(subst \",,$(subst ., , $(subst -, ,$(subst v,,$(CFG_CFG80211_VERSION)))))
-$(info VERSION_STR=$(VERSION_STR))
 X = $(firstword $(VERSION_STR))
 Y = $(word 2 ,$(VERSION_STR))
 Z = $(word 3 ,$(VERSION_STR))
 VERSION := $(shell echo "$$(( $X * 65536 + $Y * 256 + $Z))" )
 ccflags-y += -DCFG_CFG80211_VERSION=$(VERSION)
-$(info DCFG_CFG80211_VERSION=$(VERSION))
 endif
 
 
@@ -1402,7 +1366,6 @@ else
 endif
 
 # For Roaming Enhance Feature
-$(info CONFIG_MTK_SUPPLICANT_ROAMING_ENHANCE=$(CONFIG_MTK_SUPPLICANT_ROAMING_ENHANCE))
 ifeq ($(CONFIG_MTK_SUPPLICANT_ROAMING_ENHANCE), y)
     ccflags-y += -DCFG_MTK_SUPPLICANT_ROAMING_ENHANCE=1
 else
@@ -1548,7 +1511,6 @@ ifeq ($(CONFIG_SUPPORT_DFS_OFFLOAD), y)
 ifeq ($(call kver_ge,4,19,0),1)
 ccflags-y += -DCFG_SUPPORT_DFS_OFFLOAD=1
 else
-$(info "kernel ver unsuppoted DFS_OFFLOAD")
 ccflags-y += -DCFG_SUPPORT_DFS_OFFLOAD=0
 endif
 else
@@ -1655,10 +1617,8 @@ obj-$(CONFIG_MTK_COMBO_WIFI) += $(MODULE_NAME).o
 endif
 
 ifeq ($(CONFIG_WLAN_DRV_BUILD_IN),y)
-$(warning $(MODULE_NAME) build-in boot.img)
 obj-y += $(MODULE_NAME).o
 else
-$(warning $(MODULE_NAME) is kernel module)
 obj-m += $(MODULE_NAME).o
 endif
 endif
@@ -2025,7 +1985,6 @@ SERVICE_DIR  := wlan_service/
 ifneq ($(findstring wlan_service,$(MTK_WLAN_SERVICE_PATH)),)
 MTK_WLAN_SERVICE=yes
 SERVICE_DIR  := $(MTK_WLAN_SERVICE_PATH)
-$(info SERVICE_DIR is [{$(MTK_WLAN_SERVICE_PATH)}])
 endif
 
 ifeq ($(MTK_WLAN_SERVICE), yes)
@@ -2035,7 +1994,6 @@ ccflags-y += -I$(src)/$(SERVICE_DIR)include
 ccflags-y += -I$(src)/$(SERVICE_DIR)service/include
 ccflags-y += -I$(src)/$(SERVICE_DIR)glue/osal/include
 ccflags-y += -I$(src)/$(SERVICE_DIR)glue/hal/include
-$(info $$CCFLAG is [{$(ccflags-y)}])
 SERVICE_OBJS := $(SERVICE_DIR)agent/agent.o \
                 $(SERVICE_DIR)service/service_test.o \
                 $(SERVICE_DIR)service/test_engine.o \
@@ -2043,7 +2001,6 @@ SERVICE_OBJS := $(SERVICE_DIR)agent/agent.o \
                 $(SERVICE_DIR)glue/osal/gen4m/net_adaption_gen4m.o \
                 $(SERVICE_DIR)glue/hal/gen4m/operation_gen4m.o
 $(MODULE_NAME)-objs  += $(SERVICE_OBJS)
-$(info $$MTK_WLAN_SERVICE is [{$(SERVICE_OBJS)}])
 else
 ccflags-y += -DCONFIG_WLAN_SERVICE=0
 ccflags-y += -DCONFIG_TEST_ENGINE_OFFLOAD=0
