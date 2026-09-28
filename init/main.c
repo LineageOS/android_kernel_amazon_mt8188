@@ -4,6 +4,8 @@
  *
  *  Copyright (C) 1991, 1992  Linus Torvalds
  *
+ *  Copyright 2022 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ *
  *  GK 2/5/95  -  Changed to support mounting root fs via NFS
  *  Added initrd & change_root: Werner Almesberger & Hans Lermen, Feb '96
  *  Moan early if gcc is old, avoiding bogus kernels - Paul Gortmaker, May '96
@@ -141,6 +143,7 @@ void (*__initdata late_time_init)(void);
 char __initdata boot_command_line[COMMAND_LINE_SIZE];
 /* Untouched saved command line (eg. for /proc) */
 char *saved_command_line;
+EXPORT_SYMBOL(saved_command_line);
 /* Command line for parameter parsing */
 static char *static_command_line;
 /* Untouched extra command line */
