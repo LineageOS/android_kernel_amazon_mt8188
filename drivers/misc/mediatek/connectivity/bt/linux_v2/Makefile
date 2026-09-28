@@ -18,6 +18,7 @@ ccflags-y += -DCHIP_IF_SDIO
 ccflags-y += -DSDIO_DEBUG=0
 
 ccflags-y += -DCFG_CHIP_RESET_KO_SUPPORT
+ccflags-y += -DCFG_SUPPORT_COMM_CORE
 
 ccflags-y += -DCFG_SUPPORT_BT_DL_WIFI_PATCH=1
 ccflags-y += -DCFG_SUPPORT_BT_DL_ZB_PATCH=0

@@ -2054,7 +2054,7 @@ static void btmtk_sdio_disconnect(struct sdio_func *func)
 static int btmtk_cif_probe(struct sdio_func *func,
 					const struct sdio_device_id *id)
 {
-	int ret = -1;
+	int ret = -ENODEV;
 	int cif_event = 0;
 	struct btmtk_cif_state *cif_state = NULL;
 	struct btmtk_dev *bdev = NULL;
@@ -2071,18 +2071,21 @@ static int btmtk_cif_probe(struct sdio_func *func,
 	/* notify reset ko module BT probe start */
 	rstNotifyWholeChipRstStatus(RST_MODULE_BT, RST_MODULE_STATE_PROBE_START, NULL);
 #endif
+#ifdef CFG_SUPPORT_COMM_CORE
+	NotifyCommCoreStatusCmd(RST_MODULE_BT, COMM_CORE_STATUS_PROBE_START, func);
+#endif
 
 	/* sdio interface numbers  */
 	if (func->num != BTMTK_SDIO_FUNC) {
 		BTMTK_INFO("%s: func num is not match, func_num = %d", __func__, func->num);
-		return -ENODEV;
+		goto exit;
 	}
 
 	/* Retrieve priv data and set to interface structure */
 	bdev = btmtk_get_dev();
 	if (!bdev) {
 		BTMTK_INFO("%s: bdev is NULL", __func__);
-		return -ENODEV;
+		goto exit;
 	}
 
 	bdev->intf_dev = &func->dev;
@@ -2094,7 +2097,7 @@ static int btmtk_cif_probe(struct sdio_func *func,
 	if (BTMTK_CIF_IS_NULL(bdev, cif_event)) {
 		/* Error */
 		BTMTK_WARN("%s priv setting is NULL", __func__);
-		return -ENODEV;
+		goto exit;
 	}
 
 	cif_state = &bdev->cif_state[cif_event];
@@ -2111,9 +2114,15 @@ static int btmtk_cif_probe(struct sdio_func *func,
 	else
 		btmtk_set_chip_state((void *)bdev, cif_state->ops_error);
 
+exit:
 #ifdef CFG_CHIP_RESET_KO_SUPPORT
 	/* notify reset ko module BT probe done */
 	rstNotifyWholeChipRstStatus(RST_MODULE_BT, RST_MODULE_STATE_PROBE_DONE, NULL);
+#endif
+#ifdef CFG_SUPPORT_COMM_CORE
+	/* COMM-CORE waits for this to complete a BT power on request */
+	NotifyCommCoreStatusCmd(RST_MODULE_BT, ret ? COMM_CORE_STATUS_PROBE_FAIL :
+				COMM_CORE_STATUS_PROBE_SUCCESS, func);
 #endif
 
 	DUMP_TIME_STAMP("probe_end");
@@ -2126,6 +2135,11 @@ static void btmtk_cif_disconnect(struct sdio_func *func)
 	struct btmtk_cif_state *cif_state = NULL;
 	struct btmtk_dev *bdev = NULL;
 
+	BTMTK_INFO("%s, start", __func__);
+#ifdef CFG_SUPPORT_COMM_CORE
+	NotifyCommCoreStatusCmd(RST_MODULE_BT, COMM_CORE_STATUS_REMOVE_START, func);
+#endif
+
 	bdev = sdio_get_drvdata(func);
 
 	/* Retrieve current HIF event state */
@@ -2133,7 +2147,7 @@ static void btmtk_cif_disconnect(struct sdio_func *func)
 	if (BTMTK_CIF_IS_NULL(bdev, cif_event)) {
 		/* Error */
 		BTMTK_WARN("%s priv setting is NULL", __func__);
-		return;
+		goto exit;
 	}
 
 	cif_state = &bdev->cif_state[cif_event];
@@ -2146,6 +2160,13 @@ static void btmtk_cif_disconnect(struct sdio_func *func)
 
 	/* Set End/Error state */
 	btmtk_set_chip_state((void *)bdev, cif_state->ops_end);
+
+exit:
+#ifdef CFG_SUPPORT_COMM_CORE
+	/* COMM-CORE waits for this to complete a BT power off request */
+	NotifyCommCoreStatusCmd(RST_MODULE_BT, COMM_CORE_STATUS_REMOVE_SUCCESS, func);
+#endif
+	BTMTK_INFO("%s, end", __func__);
 }
 
 #ifdef CONFIG_PM
@@ -2574,6 +2595,11 @@ static int sdio_register(void)
 	if (sdio_register_driver(&btmtk_sdio_driver) != 0)
 		return -ENODEV;
 
+#ifdef CFG_SUPPORT_COMM_CORE
+	/* Let COMM-CORE unbind/rebind BT alone while WLAN stays up */
+	comm_core_register_sdio_driver(RST_MODULE_BT, &btmtk_sdio_driver);
+#endif
+
 	return 0;
 }
 
@@ -2581,6 +2607,9 @@ static int sdio_deregister(void)
 {
 	BTMTK_INFO("%s", __func__);
 	sdio_unregister_driver(&btmtk_sdio_driver);
+#ifdef CFG_SUPPORT_COMM_CORE
+	comm_core_unregister_sdio_driver(RST_MODULE_BT);
+#endif
 	return 0;
 }
 
