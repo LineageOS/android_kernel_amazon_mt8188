@@ -62,6 +62,9 @@ struct stackframe {
 };
 
 extern int unwind_frame(struct task_struct *tsk, struct stackframe *frame);
+#if IS_ENABLED(CONFIG_MTK_AEE_HWT_BACKTO_KERNEL)
+extern int aee_unwind_frame(struct task_struct *tsk, struct stackframe *frame);
+#endif
 extern void walk_stackframe(struct task_struct *tsk, struct stackframe *frame,
 			    bool (*fn)(void *, unsigned long), void *data);
 extern void dump_backtrace(struct pt_regs *regs, struct task_struct *tsk,

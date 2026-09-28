@@ -117,6 +117,17 @@ int notrace unwind_frame(struct task_struct *tsk, struct stackframe *frame)
 }
 NOKPROBE_SYMBOL(unwind_frame);
 
+#if IS_ENABLED(CONFIG_MTK_AEE_HWT_BACKTO_KERNEL)
+int notrace aee_unwind_frame(struct task_struct *tsk, struct stackframe *frame)
+{
+	int ret = 0;
+
+	ret = unwind_frame(tsk, frame);
+	return ret;
+}
+EXPORT_SYMBOL(aee_unwind_frame);
+#endif
+
 void notrace walk_stackframe(struct task_struct *tsk, struct stackframe *frame,
 			     bool (*fn)(void *, unsigned long), void *data)
 {
