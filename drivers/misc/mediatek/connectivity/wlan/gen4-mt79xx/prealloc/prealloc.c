@@ -22,6 +22,9 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/errno.h>
+#include <linux/io.h>
+#include <linux/of.h>
+#include <linux/of_reserved_mem.h>
 #include "precomp.h"
 #include "prealloc.h"
 
@@ -29,6 +32,7 @@
 *                              C O N S T A N T S
 ********************************************************************************
 */
+#define PREALLOC_RESERVED_MEM_COMPATIBLE "mediatek,wifi-reserved-memory"
 
 /*******************************************************************************
 *                             D A T A   T Y P E S
@@ -70,6 +74,7 @@ MODULE_LICENSE("Dual BSD/GPL");
 */
 static int32_t blockCount;
 static struct PRE_MEM_BLOCK arMemBlocks[MEM_ID_NUM];
+static void *pvReservedMem;
 
 /*******************************************************************************
 *                                 M A C R O S
@@ -137,13 +142,82 @@ static void preallocFree(void)
 		for (j = 0; j < block->u4Count; j++) {
 			memory = items[j].pvBuffer;
 			MP_Dbg(" - [%d] memory 0x%p\n", j, memory);
-			kfree(memory);
+			if (!pvReservedMem)
+				kfree(memory);
 		}
 		/* free items */
 		MP_Dbg(" - items 0x%p\n", items);
 		kfree(items);
 		memset(block, 0, sizeof(*block));
 	}
+
+	if (pvReservedMem) {
+		memunmap(pvReservedMem);
+		pvReservedMem = NULL;
+	}
+}
+
+static int preallocAllocReserved(void)
+{
+	struct device_node *np;
+	struct reserved_mem *rmem;
+	struct PRE_MEM_BLOCK *block;
+	struct PRE_MEM_ITEM *items;
+	phys_addr_t offset = 0;
+	int32_t i, j;
+
+	np = of_find_compatible_node(NULL, NULL,
+				     PREALLOC_RESERVED_MEM_COMPATIBLE);
+	if (!np) {
+		MP_Info("no reserved memory node, fall back to kmalloc\n");
+		return -ENODEV;
+	}
+
+	rmem = of_reserved_mem_lookup(np);
+	of_node_put(np);
+	if (!rmem) {
+		MP_Err("reserved memory lookup failed, fall back to kmalloc\n");
+		return -ENODEV;
+	}
+
+	pvReservedMem = memremap(rmem->base, rmem->size, MEMREMAP_WB);
+	if (!pvReservedMem) {
+		MP_Err("reserved memory remap failed, fall back to kmalloc\n");
+		return -ENODEV;
+	}
+
+	MP_Info("reserved memory %s at %pa, size %pa\n",
+		rmem->name, &rmem->base, &rmem->size);
+
+	for (i = 0; i < MEM_ID_NUM; i++) {
+		block = &arMemBlocks[i];
+		MP_Info("allocate [%d] block name=\"%s\" count=%d size=%d\n",
+				i, block->pucName, block->u4Count,
+				block->u4Size);
+		items = kcalloc(block->u4Count, sizeof(*items), GFP_KERNEL);
+		if (items == NULL) {
+			MP_Err("allocate [%d] items failed\n", i);
+			goto fail;
+		}
+		block->pItemArray = items;
+		for (j = 0; j < block->u4Count; j++) {
+			offset = ALIGN(offset, ARCH_DMA_MINALIGN);
+			if (offset + block->u4Size > rmem->size) {
+				MP_Err("[%d][%d] exceeds reserved memory\n",
+						i, j);
+				goto fail;
+			}
+			items[j].pvBuffer = (uint8_t *)pvReservedMem + offset;
+			MP_Dbg(" + [%d] memory 0x%p\n", j, items[j].pvBuffer);
+			offset += block->u4Size;
+		}
+	}
+
+	return 0;
+
+fail:
+	preallocFree();
+	return -ENOMEM;
 }
 
 static int preallocAlloc(void)
@@ -212,6 +286,7 @@ static int __init preallocInit(void)
 {
 	uint32_t u4Size;
 	uint32_t u4CardCount = CFG_MAX_WLAN_DEVICES;
+	int ret;
 
 	blockCount = 0;
 
@@ -269,6 +344,10 @@ static int __init preallocInit(void)
 #endif
 #endif
 	/* ADD BLOCK END */
+
+	ret = preallocAllocReserved();
+	if (ret != -ENODEV)
+		return ret;
 
 	return preallocAlloc();
 }
