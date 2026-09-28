@@ -891,6 +891,11 @@ int btmtk_dispatch_fwlog(struct btmtk_dev *bdev, struct sk_buff *skb)
 		static int dump_data_length;
 
 		state = btmtk_get_chip_state(bdev);
+		if (state == BTMTK_STATE_SUBSYS_RESET) {
+			/* The controller is being reset, drop stale coredump data */
+			BTMTK_WARN("%s: ignore FW dump while reset", __func__);
+			return 1;
+		}
 		if (state != BTMTK_STATE_FW_DUMP) {
 			BTMTK_INFO("%s: FW dump begin", __func__);
 			DUMP_TIME_STAMP("FW_dump_start");
