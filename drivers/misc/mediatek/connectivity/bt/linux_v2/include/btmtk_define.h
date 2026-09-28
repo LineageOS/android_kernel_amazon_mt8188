@@ -35,7 +35,7 @@
 #include <linux/rtc.h>
 
 #ifdef CFG_CHIP_RESET_KO_SUPPORT
-#include "reset.h"
+#include "btmtk_reset_ko.h"
 #endif
 
 /** Driver version */
