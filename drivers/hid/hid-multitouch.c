@@ -939,7 +939,6 @@ static void mt_sync_frame(struct mt_device *td, struct mt_application *app,
 		input_event(input, EV_KEY, BTN_LEFT, app->left_button_state);
 
 	input_mt_sync_frame(input);
-	input_event(input, EV_MSC, MSC_TIMESTAMP, app->timestamp);
 	input_sync(input);
 
 	mt_release_pending_palms(td, app, input);

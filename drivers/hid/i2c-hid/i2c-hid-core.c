@@ -38,7 +38,8 @@
 #include <linux/acpi.h>
 #include <linux/of.h>
 #include <linux/regulator/consumer.h>
-
+#include <linux/of_gpio.h>
+#include <linux/of_irq.h>
 #include <linux/platform_data/i2c-hid.h>
 
 #include "../hid-ids.h"
@@ -189,6 +190,10 @@ static const struct i2c_hid_quirks {
 		 I2C_HID_QUIRK_BOGUS_IRQ },
 	{ 0, 0 }
 };
+
+#if IS_ENABLED(CONFIG_HID_TOUCH_METRICS)
+touch_metrics_info_t touch_metrics_data;
+#endif
 
 /*
  * i2c_hid_lookup_quirk: return any quirks associated with a I2C HID device
@@ -461,6 +466,10 @@ static int i2c_hid_hwreset(struct i2c_client *client)
 	ret = i2c_hid_command(client, &hid_reset_cmd, NULL, 0);
 	if (ret) {
 		dev_err(&client->dev, "failed to reset device.\n");
+#if IS_ENABLED(CONFIG_HID_TOUCH_METRICS)
+		touch_metrics_data.bootup_status = HID_HW_RESET_FAIL;
+		tp_metrics_print_func(touch_metrics_data);
+#endif
 		i2c_hid_set_power(client, I2C_HID_PWR_SLEEP);
 		goto out_unlock;
 	}
@@ -839,7 +848,7 @@ static int i2c_hid_init_irq(struct i2c_client *client)
 	dev_dbg(&client->dev, "Requesting IRQ: %d\n", client->irq);
 
 	if (!irq_get_trigger_type(client->irq))
-		irqflags = IRQF_TRIGGER_LOW;
+		irqflags = IRQF_TRIGGER_FALLING;
 
 	ret = request_threaded_irq(client->irq, NULL, i2c_hid_irq,
 				   irqflags | IRQF_ONESHOT, client->name, ihid);
@@ -1033,14 +1042,29 @@ static void i2c_hid_fwnode_probe(struct i2c_client *client,
 static int i2c_hid_probe(struct i2c_client *client,
 			 const struct i2c_device_id *dev_id)
 {
-	int ret;
+	int ret = 0;
+	int irq_gpio = 0;
 	struct i2c_hid *ihid;
 	struct hid_device *hid;
 	__u16 hidRegister;
 	struct i2c_hid_platform_data *platform_data = client->dev.platform_data;
+	struct device_node *np = client->dev.of_node;
+#if IS_ENABLED(CONFIG_HID_TOUCH_METRICS)
+	touch_metrics_data.fw_version = DEFAULT_FW_VERSION;
+	touch_metrics_data.bootup_status = BOOT_UP_INIT_STATUS;
+	touch_metrics_data.fw_upgrade_result = FW_UPGRADE_STATE_INIT;
+#endif
 
 	dbg_hid("HID probe called for i2c 0x%02x\n", client->addr);
-
+	/* Make sure there is something at this address */
+	ret = i2c_smbus_read_byte(client);
+	if (ret < 0) {
+		dev_err(&client->dev, "nothing at this address 0x%x: %d\n", client->addr,ret);
+		return -ENODEV;
+	}
+	irq_gpio = of_get_named_gpio(np, "irq-gpios", 0);
+	dbg_hid("irq-gpio=%d\n", irq_gpio);
+	client->irq = gpio_to_irq(irq_gpio);
 	if (!client->irq) {
 		dev_err(&client->dev,
 			"HID over i2c has not been provided an Int IRQ\n");
@@ -1122,8 +1146,13 @@ static int i2c_hid_probe(struct i2c_client *client,
 	}
 
 	ret = i2c_hid_fetch_hid_descriptor(ihid);
-	if (ret < 0)
+	if (ret < 0) {
+#if IS_ENABLED(CONFIG_HID_TOUCH_METRICS)
+		touch_metrics_data.bootup_status = HID_DESCRIPTOR_ERROR;
+		tp_metrics_print_func(touch_metrics_data);
+#endif
 		goto err_regulator;
+	}
 
 	ret = i2c_hid_init_irq(client);
 	if (ret < 0)
@@ -1155,6 +1184,10 @@ static int i2c_hid_probe(struct i2c_client *client,
 	if (ret) {
 		if (ret != -ENODEV)
 			hid_err(client, "can't add hid device: %d\n", ret);
+#if IS_ENABLED(CONFIG_HID_TOUCH_METRICS)
+		touch_metrics_data.bootup_status = ADD_HID_DEVICE_FAIL;
+		tp_metrics_print_func(touch_metrics_data);
+#endif
 		goto err_mem_free;
 	}
 
@@ -1202,7 +1235,7 @@ static void i2c_hid_shutdown(struct i2c_client *client)
 	i2c_hid_acpi_shutdown(&client->dev);
 }
 
-#ifdef CONFIG_PM_SLEEP
+#if defined(CONFIG_PM_SLEEP) && !defined(CONFIG_I2C_HID_NO_USE_PM)
 static int i2c_hid_suspend(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
@@ -1289,13 +1322,16 @@ static int i2c_hid_resume(struct device *dev)
 }
 #endif
 
+#if defined(CONFIG_PM_SLEEP) && !defined(CONFIG_I2C_HID_NO_USE_PM)
 static const struct dev_pm_ops i2c_hid_pm = {
 	SET_SYSTEM_SLEEP_PM_OPS(i2c_hid_suspend, i2c_hid_resume)
 };
+#endif
 
 static const struct i2c_device_id i2c_hid_id_table[] = {
 	{ "hid", 0 },
-	{ "hid-over-i2c", 0 },
+	{ "ilitek_hid-over-i2c", 0 },
+	{ "focal_hid-over-i2c", 0 },
 	{ },
 };
 MODULE_DEVICE_TABLE(i2c, i2c_hid_id_table);
@@ -1304,7 +1340,9 @@ MODULE_DEVICE_TABLE(i2c, i2c_hid_id_table);
 static struct i2c_driver i2c_hid_driver = {
 	.driver = {
 		.name	= "i2c_hid",
+#if defined(CONFIG_PM_SLEEP) && !defined(CONFIG_I2C_HID_NO_USE_PM)
 		.pm	= &i2c_hid_pm,
+#endif
 		.probe_type = PROBE_PREFER_ASYNCHRONOUS,
 		.acpi_match_table = ACPI_PTR(i2c_hid_acpi_match),
 		.of_match_table = of_match_ptr(i2c_hid_of_match),

@@ -10,6 +10,7 @@
 #include <linux/regmap.h>
 #include <linux/bitops.h>
 #include <linux/clk-provider.h>
+#include <linux/platform_device.h>
 
 struct clk;
 struct clk_onecell_data;
@@ -125,7 +126,7 @@ struct mtk_composite {
 		.divider_shift = -1,					\
 		.parent_names = _parents,				\
 		.num_parents = ARRAY_SIZE(_parents),			\
-		.flags = _flags,				\
+		.flags = _flags,					\
 	}
 
 #define DIV_GATE(_id, _name, _parent, _gate_reg, _gate_shift, _div_reg,	\
@@ -201,6 +202,7 @@ void mtk_clk_register_dividers(const struct mtk_clk_divider *mcds,
 				struct clk_onecell_data *clk_data);
 
 struct clk_onecell_data *mtk_alloc_clk_data(unsigned int clk_num);
+void mtk_free_clk_data(struct clk_onecell_data *clk_data);
 
 #define HAVE_RST_BAR	BIT(0)
 #define PLL_AO		BIT(1)
@@ -215,6 +217,7 @@ struct mtk_pll_data {
 	const char *name;
 	uint32_t reg;
 	uint32_t pwr_reg;
+	uint32_t en_reg;
 	uint32_t en_mask;
 	uint32_t pd_reg;
 	uint32_t tuner_reg;
@@ -233,6 +236,7 @@ struct mtk_pll_data {
 	uint32_t pcw_chg_reg;
 	const struct mtk_pll_div_table *div_table;
 	const char *parent_name;
+	uint8_t pll_en_bit;
 };
 
 void mtk_clk_register_plls(struct device_node *node,
@@ -247,5 +251,14 @@ void mtk_register_reset_controller(struct device_node *np,
 
 void mtk_register_reset_controller_set_clr(struct device_node *np,
 	unsigned int num_regs, int regofs);
+
+extern bool (*mtk_fh_set_rate)(const char *name, unsigned long dds, int postdiv);
+
+struct mtk_clk_desc {
+	const struct mtk_gate *clks;
+	size_t num_clks;
+};
+
+int mtk_clk_simple_probe(struct platform_device *pdev);
 
 #endif /* __DRV_CLK_MTK_H */

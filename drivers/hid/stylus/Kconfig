@@ -1,0 +1,10 @@
+#
+# stylus batterry algo configuration
+#
+config STYLUS_BATTERY_ALGO
+	tristate "stylus battery algo enable"
+	default n
+	help
+	  say Y to enable stylus battery algo.
+	  If unsure, say N.
+	  stylus driver depends on touch drivers to parse stylus informations in HID packet.

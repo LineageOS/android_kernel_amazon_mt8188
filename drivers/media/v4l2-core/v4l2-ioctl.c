@@ -1412,6 +1412,9 @@ static void v4l_fill_fmtdesc(struct v4l2_fmtdesc *fmt)
 	case V4L2_PIX_FMT_TM6000:	descr = "A/V + VBI Mux Packet"; break;
 	case V4L2_PIX_FMT_CIT_YYVYUY:	descr = "GSPCA CIT YYVYUY"; break;
 	case V4L2_PIX_FMT_KONICA420:	descr = "GSPCA KONICA420"; break;
+	case V4L2_PIX_FMT_MM21:
+		descr = "Mediatek 8-bit Block Format";
+		break;
 	case V4L2_PIX_FMT_HSV24:	descr = "24-bit HSV 8-8-8"; break;
 	case V4L2_PIX_FMT_HSV32:	descr = "32-bit XHSV 8-8-8-8"; break;
 	case V4L2_SDR_FMT_CU8:		descr = "Complex U8"; break;
@@ -1450,7 +1453,6 @@ static void v4l_fill_fmtdesc(struct v4l2_fmtdesc *fmt)
 		case V4L2_PIX_FMT_MPEG2:	descr = "MPEG-2 ES"; break;
 		case V4L2_PIX_FMT_MPEG2_SLICE:	descr = "MPEG-2 Parsed Slice Data"; break;
 		case V4L2_PIX_FMT_MPEG4:	descr = "MPEG-4 Part 2 ES"; break;
-		case V4L2_PIX_FMT_XVID:		descr = "Xvid"; break;
 		case V4L2_PIX_FMT_VC1_ANNEX_G:	descr = "VC-1 (SMPTE 412M Annex G)"; break;
 		case V4L2_PIX_FMT_VC1_ANNEX_L:	descr = "VC-1 (SMPTE 412M Annex L)"; break;
 		case V4L2_PIX_FMT_VP8:		descr = "VP8"; break;
@@ -1480,6 +1482,71 @@ static void v4l_fill_fmtdesc(struct v4l2_fmtdesc *fmt)
 		case V4L2_PIX_FMT_S5C_UYVY_JPG:	descr = "S5C73MX interleaved UYVY/JPEG"; break;
 		case V4L2_PIX_FMT_MT21C:	descr = "Mediatek Compressed Format"; break;
 		case V4L2_PIX_FMT_SUNXI_TILED_NV12: descr = "Sunxi Tiled NV12 Format"; break;
+		case V4L2_PIX_FMT_HEIF:
+			descr = "HEIF"; break;
+		case V4L2_PIX_FMT_WMV1:
+			descr = "WMV1"; break;
+		case V4L2_PIX_FMT_WMV2:
+			descr = "WMV2"; break;
+		case V4L2_PIX_FMT_WMV3:
+			descr = "WMV3"; break;
+		case V4L2_PIX_FMT_WVC1:
+			descr = "WVC1"; break;
+		case V4L2_PIX_FMT_WMVA:
+			descr = "WMVA"; break;
+		case V4L2_PIX_FMT_RV30:
+			descr = "RealVideo 8"; break;
+		case V4L2_PIX_FMT_RV40:
+			descr = "RealVideo 9/10"; break;
+		case V4L2_PIX_FMT_AV1:
+			descr = "AV1"; break;
+		case V4L2_PIX_FMT_MT10S:
+			descr = "MTK 10-bit compressed single"; break;
+		case V4L2_PIX_FMT_MT10:
+			descr = "MTK 10-bit compressed"; break;
+		case V4L2_PIX_FMT_P010S:
+			descr = "10-bit P010 LSB 6-bit single"; break;
+		case V4L2_PIX_FMT_NV12_HYFBC:
+			descr = "8-bit yuv 4:2:0 Hybrid FBC mode"; break;
+		case V4L2_PIX_FMT_P010_HYFBC:
+			descr = "10-bit yuv 4:2:0 Hybrid FBC mode"; break;
+		case V4L2_PIX_FMT_P010M:
+			descr = "10-bit P010 LSB 6-bit"; break;
+		case V4L2_PIX_FMT_NV12_AFBC:
+			descr = "AFBC NV12"; break;
+		case V4L2_PIX_FMT_NV12_10B_AFBC:
+			descr = "10-bit AFBC NV12"; break;
+		case V4L2_PIX_FMT_RGB32_AFBC:
+			descr = "32-bit AFBC A/XRGB 8-8-8-8"; break;
+		case V4L2_PIX_FMT_BGR32_AFBC:
+			descr = "32-bit AFBC A/XBGR 8-8-8-8"; break;
+		case V4L2_PIX_FMT_RGBA1010102_AFBC:
+			descr = "10-bit AFBC RGB 2-bit for A"; break;
+		case V4L2_PIX_FMT_BGRA1010102_AFBC:
+			descr = "10-bit AFBC BGR 2-bit for A"; break;
+		case V4L2_PIX_FMT_ARGB1010102:
+		case V4L2_PIX_FMT_ABGR1010102:
+		case V4L2_PIX_FMT_RGBA1010102:
+		case V4L2_PIX_FMT_BGRA1010102:
+			descr = "10-bit for RGB, 2-bit for A"; break;
+		case V4L2_PIX_FMT_MT2110T:
+		case V4L2_PIX_FMT_MT2110R:
+		case V4L2_PIX_FMT_MT21C10T:
+		case V4L2_PIX_FMT_MT21C10R:
+		case V4L2_PIX_FMT_MT21CS:
+		case V4L2_PIX_FMT_MT21S:
+		case V4L2_PIX_FMT_MT21S10T:
+		case V4L2_PIX_FMT_MT21S10R:
+		case V4L2_PIX_FMT_MT21CS10T:
+		case V4L2_PIX_FMT_MT21CS10R:
+		case V4L2_PIX_FMT_MT21CSA:
+		case V4L2_PIX_FMT_MT21S10TJ:
+		case V4L2_PIX_FMT_MT21S10RJ:
+		case V4L2_PIX_FMT_MT21CS10TJ:
+		case V4L2_PIX_FMT_MT21CS10RJ:
+		case V4L2_PIX_FMT_DVAV:
+		case V4L2_PIX_FMT_DVHE:
+			descr = "Mediatek Video Block Format"; break;
 		default:
 			trace_android_vh_fill_ext_fmtdesc(fmt, &descr);
 			if (descr)
@@ -3182,6 +3249,7 @@ static int video_get_user(void __user *arg, void *parg, unsigned int cmd,
 			.memory		= vb32.memory,
 			.m.userptr	= vb32.m.userptr,
 			.length		= vb32.length,
+			.reserved2		= vb32.reserved2,
 			.request_fd	= vb32.request_fd,
 		};
 

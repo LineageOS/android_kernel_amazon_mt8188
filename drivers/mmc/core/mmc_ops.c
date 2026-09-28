@@ -474,6 +474,7 @@ static int mmc_busy_status(struct mmc_card *card, bool retry_crc_err,
 		break;
 	case MMC_BUSY_HPI:
 	case MMC_BUSY_IO:
+	case MMC_BUSY_SLEEP:
 		break;
 	default:
 		err = -EINVAL;
@@ -486,7 +487,7 @@ static int mmc_busy_status(struct mmc_card *card, bool retry_crc_err,
 	return 0;
 }
 
-static int __mmc_poll_for_busy(struct mmc_card *card, unsigned int timeout_ms,
+int __mmc_poll_for_busy(struct mmc_card *card, unsigned int timeout_ms,
 			       bool send_status, bool retry_crc_err,
 			       enum mmc_busy_cmd busy_cmd)
 {

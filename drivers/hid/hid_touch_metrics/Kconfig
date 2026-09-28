@@ -1,0 +1,11 @@
+#
+# hid touch metrics configuration
+#
+config HID_TOUCH_METRICS
+	tristate "hid touch metrics enable"
+	default n
+	depends on AMAZON_MINERVA_METRICS_LOG
+	help
+	  say Y to enable hid touch metrics.
+	  If unsure, say N.
+	  When the touch is not working or the battery level of the indicator pen changes abnormally, use the metrics log for printing.

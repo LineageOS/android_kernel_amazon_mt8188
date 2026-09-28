@@ -4,6 +4,8 @@
  *
  * Copyright 2005-2006 Openedhand Ltd.
  *
+ * Copyright 2022 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ *
  * Author: Richard Purdie <rpurdie@openedhand.com>
  */
 
@@ -243,6 +245,10 @@ EXPORT_SYMBOL_GPL(led_stop_software_blink);
 void led_set_brightness(struct led_classdev *led_cdev,
 			enum led_brightness brightness)
 {
+	if (led_cdev->brightness != LED_OFF && brightness == LED_OFF)
+		pr_notice("[METRICS_DISP] LED OFF\n");
+	else if (led_cdev->brightness == LED_OFF && brightness != LED_OFF)
+		pr_notice("[METRICS_DISP] LED ON\n");
 	/*
 	 * If software blink is active, delay brightness setting
 	 * until the next timer tick.

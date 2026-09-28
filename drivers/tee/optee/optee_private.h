@@ -11,6 +11,7 @@
 #include <linux/tee_drv.h>
 #include <linux/types.h>
 #include "optee_msg.h"
+#include <linux/platform_device.h>
 
 #define OPTEE_MAX_ARG_SIZE	1024
 
@@ -20,6 +21,7 @@
 #define TEEC_ERROR_NOT_SUPPORTED	0xFFFF000A
 #define TEEC_ERROR_COMMUNICATION	0xFFFF000E
 #define TEEC_ERROR_OUT_OF_MEMORY	0xFFFF000C
+#define TEEC_ERROR_BUSY			0xFFFF000D
 #define TEEC_ERROR_SHORT_BUFFER		0xFFFF0010
 
 #define TEEC_ORIGIN_COMMS		0x00000002
@@ -129,6 +131,14 @@ struct optee_call_ctx {
 	size_t num_entries;
 };
 
+/* kree console log buffer */
+struct optee_kreeconsole_buf {
+	unsigned short size;
+	unsigned short write_pos;
+	unsigned short read_pos;
+	char buf[0];
+};
+
 void optee_handle_rpc(struct tee_context *ctx, struct optee_rpc_param *param,
 		      struct optee_call_ctx *call_ctx);
 void optee_rpc_finalize_call(struct optee_call_ctx *call_ctx);
@@ -182,6 +192,12 @@ u64 *optee_allocate_pages_list(size_t num_entries);
 void optee_free_pages_list(void *array, size_t num_entries);
 void optee_fill_pages_list(u64 *dst, struct page **pages, int num_pages,
 			   size_t page_offset);
+
+int optee_kreeconsole_init(void);
+void handle_rpc_func_kree_console_flush(void);
+
+void handle_rpc_func_kree_clock_control(struct optee_msg_arg *arg);
+int optee_clkctrl_init(struct platform_device *pdev);
 
 #define PTA_CMD_GET_DEVICES		0x0
 #define PTA_CMD_GET_DEVICES_SUPP	0x1

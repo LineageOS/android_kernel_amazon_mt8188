@@ -26,7 +26,7 @@ enum mtk_jpeg_color {
 static inline int mtk_jpeg_verify_align(u32 val, int align, u32 reg)
 {
 	if (val & (align - 1)) {
-		pr_err("mtk-jpeg: write reg %x without %d align\n", reg, align);
+		pr_info("mtk-jpeg: write reg %x without %d align\n", reg, align);
 		return -1;
 	}
 
@@ -154,7 +154,7 @@ static int mtk_jpeg_calc_dst_size(struct mtk_jpeg_dec_param *param)
 		/* output format is 420/422 */
 		param->comp_w[i] = padding_w >> brz_w[i];
 		param->comp_w[i] = round_up(param->comp_w[i],
-					    MTK_JPEG_DCTSIZE);
+						  MTK_JPEG_DCTSIZE);
 		param->img_stride[i] = i ? round_up(param->comp_w[i], 16)
 					: round_up(param->comp_w[i], 32);
 		ds_row_h[i] = (MTK_JPEG_DCTSIZE * param->sampling_h[i]);
@@ -250,34 +250,40 @@ static void mtk_jpeg_dec_set_brz_factor(void __iomem *base, u8 yscale_w,
 	writel(val, base + JPGDEC_REG_BRZ_FACTOR);
 }
 
-static void mtk_jpeg_dec_set_dst_bank0(void __iomem *base, u32 addr_y,
-				       u32 addr_u, u32 addr_v)
+static void mtk_jpeg_dec_set_dst_bank0(void __iomem *base, dma_addr_t addr_y,
+				       dma_addr_t addr_u, dma_addr_t addr_v)
 {
 	mtk_jpeg_verify_align(addr_y, 16, JPGDEC_REG_DEST_ADDR0_Y);
 	writel(addr_y, base + JPGDEC_REG_DEST_ADDR0_Y);
+	writel(addr_y >> 32, base + JPGDEC_REG_DEST_ADDR0_Y_EXT);
 	mtk_jpeg_verify_align(addr_u, 16, JPGDEC_REG_DEST_ADDR0_U);
 	writel(addr_u, base + JPGDEC_REG_DEST_ADDR0_U);
+	writel(addr_u >> 32, base + JPGDEC_REG_DEST_ADDR0_U_EXT);
 	mtk_jpeg_verify_align(addr_v, 16, JPGDEC_REG_DEST_ADDR0_V);
 	writel(addr_v, base + JPGDEC_REG_DEST_ADDR0_V);
+	writel(addr_v >> 32, base + JPGDEC_REG_DEST_ADDR0_V_EXT);
 }
 
-static void mtk_jpeg_dec_set_dst_bank1(void __iomem *base, u32 addr_y,
-				       u32 addr_u, u32 addr_v)
+static void mtk_jpeg_dec_set_dst_bank1(void __iomem *base, dma_addr_t addr_y,
+				       dma_addr_t addr_u, dma_addr_t addr_v)
 {
 	writel(addr_y, base + JPGDEC_REG_DEST_ADDR1_Y);
+	writel(addr_y >> 32, base + JPGDEC_REG_DEST_ADDR1_Y_EXT);
 	writel(addr_u, base + JPGDEC_REG_DEST_ADDR1_U);
+	writel(addr_u >> 32, base + JPGDEC_REG_DEST_ADDR1_U_EXT);
 	writel(addr_v, base + JPGDEC_REG_DEST_ADDR1_V);
+	writel(addr_v >> 32, base + JPGDEC_REG_DEST_ADDR1_V_EXT);
 }
 
-static void mtk_jpeg_dec_set_mem_stride(void __iomem *base, u32 stride_y,
-					u32 stride_uv)
+static void mtk_jpeg_dec_set_mem_stride(void __iomem *base, u32  stride_y,
+					u32  stride_uv)
 {
 	writel((stride_y & 0xFFFF), base + JPGDEC_REG_STRIDE_Y);
 	writel((stride_uv & 0xFFFF), base + JPGDEC_REG_STRIDE_UV);
 }
 
-static void mtk_jpeg_dec_set_img_stride(void __iomem *base, u32 stride_y,
-					u32 stride_uv)
+static void mtk_jpeg_dec_set_img_stride(void __iomem *base, u32  stride_y,
+					u32  stride_uv)
 {
 	writel((stride_y & 0xFFFF), base + JPGDEC_REG_IMG_STRIDE_Y);
 	writel((stride_uv & 0xFFFF), base + JPGDEC_REG_IMG_STRIDE_UV);
@@ -293,18 +299,22 @@ static void mtk_jpeg_dec_set_dec_mode(void __iomem *base, u32 mode)
 	writel(mode & 0x03, base + JPGDEC_REG_OPERATION_MODE);
 }
 
-static void mtk_jpeg_dec_set_bs_write_ptr(void __iomem *base, u32 ptr)
+static void mtk_jpeg_dec_set_bs_write_ptr(void __iomem *base, dma_addr_t ptr)
 {
 	mtk_jpeg_verify_align(ptr, 16, JPGDEC_REG_FILE_BRP);
 	writel(ptr, base + JPGDEC_REG_FILE_BRP);
+	writel(ptr >> 32, base + JPGDEC_REG_FILE_BRP_EXT);
 }
 
-static void mtk_jpeg_dec_set_bs_info(void __iomem *base, u32 addr, u32 size)
+static void mtk_jpeg_dec_set_bs_info(void __iomem *base, dma_addr_t addr, u32 size,
+				     u32 bitstream_size)
 {
 	mtk_jpeg_verify_align(addr, 16, JPGDEC_REG_FILE_ADDR);
 	mtk_jpeg_verify_align(size, 128, JPGDEC_REG_FILE_TOTAL_SIZE);
 	writel(addr, base + JPGDEC_REG_FILE_ADDR);
+	writel(addr >> 32, base + JPGDEC_REG_FILE_ADDR_EXT);
 	writel(size, base + JPGDEC_REG_FILE_TOTAL_SIZE);
+	writel(bitstream_size, base + JPGDEC_REG_BIT_STREAM_SIZE);
 }
 
 static void mtk_jpeg_dec_set_comp_id(void __iomem *base, u32 id_y, u32 id_u,
@@ -374,6 +384,7 @@ static void mtk_jpeg_dec_set_sampling_factor(void __iomem *base, u32 comp_num,
 
 void mtk_jpeg_dec_set_config(void __iomem *base,
 			     struct mtk_jpeg_dec_param *config,
+			     u32 bitstream_size,
 			     struct mtk_jpeg_bs *bs,
 			     struct mtk_jpeg_fb *fb)
 {
@@ -381,7 +392,7 @@ void mtk_jpeg_dec_set_config(void __iomem *base,
 	mtk_jpeg_dec_set_dec_mode(base, 0);
 	mtk_jpeg_dec_set_comp0_du(base, config->unit_num);
 	mtk_jpeg_dec_set_total_mcu(base, config->total_mcu);
-	mtk_jpeg_dec_set_bs_info(base, bs->str_addr, bs->size);
+	mtk_jpeg_dec_set_bs_info(base, bs->str_addr, bs->size, bitstream_size);
 	mtk_jpeg_dec_set_bs_write_ptr(base, bs->end_addr);
 	mtk_jpeg_dec_set_du_membership(base, config->membership, 1,
 				       (config->comp_num == 1) ? 1 : 0);

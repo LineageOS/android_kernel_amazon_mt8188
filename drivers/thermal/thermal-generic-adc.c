@@ -4,6 +4,8 @@
  *
  * Copyright (C) 2016 NVIDIA CORPORATION. All rights reserved.
  *
+ * Copyright 2022 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ *
  * Author: Laxman Dewangan <ldewangan@nvidia.com>
  */
 #include <linux/iio/consumer.h>
@@ -12,6 +14,13 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/thermal.h>
+#include <charger_class.h>
+#include <linux/delay.h>
+#include "thermal_hwmon.h"
+
+#if IS_ENABLED(CONFIG_AMAZON_SIGN_OF_LIFE)
+#include <linux/amzn_sign_of_life.h>
+#endif
 
 struct gadc_thermal_info {
 	struct device *dev;
@@ -20,6 +29,10 @@ struct gadc_thermal_info {
 	s32 *lookup_table;
 	int nlookup_table;
 };
+
+#define GADC_NTC_NUM 5
+static struct gadc_thermal_info *gti_ntc[GADC_NTC_NUM];
+static int gti_ntc_num = 0;
 
 static int gadc_thermal_adc_to_temp(struct gadc_thermal_info *gti, int val)
 {
@@ -52,6 +65,59 @@ static int gadc_thermal_adc_to_temp(struct gadc_thermal_info *gti, int val)
 	return temp;
 }
 
+#ifdef CONFIG_THERMAL_SHUTDOWN_LAST_KMESG
+static void last_kmsg_thermal_shutdown(const char* msg)
+{
+	int rc = 0;
+	char *argv[] = {
+		"/system_ext/bin/crashreport",
+		"thermal_shutdown",
+		NULL
+	};
+
+	pr_err("%s:%s start to save last kmsg\n", __func__, msg);
+	/* UMH_WAIT_PROC UMH_WAIT_EXEC */
+	rc = call_usermodehelper(argv[0], argv, NULL, UMH_WAIT_EXEC);
+	pr_err("%s: save last kmsg finish\n", __func__);
+
+	if (rc < 0)
+		pr_err("call crashreport failed, rc = %d\n", rc);
+	else
+		msleep(6000);	/* 6000ms */
+}
+#else
+static inline void last_kmsg_thermal_shutdown(const char* msg) {}
+#endif
+
+static int gadc_thermal_notify(struct thermal_zone_device *thermal,
+			       int trip, enum thermal_trip_type type)
+{
+	int trip_temp = 0;
+
+	if (!thermal) {
+		pr_err("%s thermal:%p is NULL!\n", __func__, thermal);
+		return -EINVAL;
+	}
+
+	if (type == THERMAL_TRIP_CRITICAL) {
+		if (thermal->ops->get_trip_temp)
+			thermal->ops->get_trip_temp(thermal, trip, &trip_temp);
+		set_shutdown_enable_dcap();
+		pr_err("[%s][%s]type:[%s] Thermal shutdown, "
+			"current temp=%d, trip=%d, trip_temp=%d\n",
+			__func__, dev_name(&thermal->device), thermal->type,
+			thermal->temperature, trip, trip_temp);
+
+#if IS_ENABLED(CONFIG_AMAZON_SIGN_OF_LIFE)
+		life_cycle_set_thermal_shutdown_reason
+			(THERMAL_SHUTDOWN_REASON_BTS);
+#endif
+		last_kmsg_thermal_shutdown(dev_name(&thermal->device));
+	}
+
+	return 0;
+}
+
 static int gadc_thermal_get_temp(void *data, int *temp)
 {
 	struct gadc_thermal_info *gti = data;
@@ -67,6 +133,29 @@ static int gadc_thermal_get_temp(void *data, int *temp)
 
 	return 0;
 }
+
+int get_gadc_thermal_temp(const char* name)
+{
+	struct gadc_thermal_info *gti = NULL;
+	int temp = 0;
+	int i;
+
+	for (i = 0; i < GADC_NTC_NUM; i++) {
+		if(gti_ntc[i] &&
+		!strncasecmp(name, gti_ntc[i]->tz_dev->type, THERMAL_NAME_LENGTH)) {
+			gti = gti_ntc[i];
+			break;
+		}
+	}
+	if (gti) {
+		gadc_thermal_get_temp(gti, &temp);
+	} else {
+		pr_err("%s name:%s get temp failed!\n", __func__, name);
+	}
+
+	return temp;
+}
+EXPORT_SYMBOL_GPL(get_gadc_thermal_temp);
 
 static const struct thermal_zone_of_device_ops gadc_thermal_ops = {
 	.get_temp = gadc_thermal_get_temp,
@@ -152,7 +241,15 @@ static int gadc_thermal_probe(struct platform_device *pdev)
 				"Thermal zone sensor register failed: %d\n",
 				ret);
 		return ret;
+	} else {
+		gti->tz_dev->ops->notify = gadc_thermal_notify;
 	}
+	if (gti_ntc_num < GADC_NTC_NUM)
+		gti_ntc[gti_ntc_num++] = gti;
+
+	ret = thermal_add_hwmon_sysfs(gti->tz_dev);
+	if (ret)
+		dev_warn(&pdev->dev, "Error: thermal_add_hwmon_sysfs fail\n");
 
 	return 0;
 }

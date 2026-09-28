@@ -2,6 +2,8 @@
 #
 # Generic thermal drivers configuration
 #
+# Copyright 2022 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
 
 menuconfig THERMAL
 	bool "Thermal drivers"
@@ -401,16 +403,10 @@ config DA9062_THERMAL
 	  zone.
 	  Compatible with the DA9062 and DA9061 PMICs.
 
-config MTK_THERMAL
-	tristate "Temperature sensor driver for mediatek SoCs"
-	depends on ARCH_MEDIATEK || COMPILE_TEST
-	depends on HAS_IOMEM
-	depends on NVMEM || NVMEM=n
-	depends on RESET_CONTROLLER
-	default y
-	help
-	  Enable this option if you want to have support for thermal management
-	  controller present in Mediatek SoCs
+menu "Mediatek thermal drivers"
+depends on ARCH_MEDIATEK || COMPILE_TEST
+source "drivers/thermal/mediatek/Kconfig"
+endmenu
 
 config AMLOGIC_THERMAL
 	tristate "Amlogic Thermal Support"
@@ -500,6 +496,8 @@ config SPRD_THERMAL
 	  Support for the Spreadtrum thermal sensor driver in the Linux thermal
 	  framework.
 
+source "drivers/thermal/virtual_sensor_tablet/Kconfig"
+
 config KHADAS_MCU_FAN_THERMAL
 	tristate "Khadas MCU controller FAN cooling support"
 	depends on OF || COMPILE_TEST
@@ -509,5 +507,12 @@ config KHADAS_MCU_FAN_THERMAL
 	help
 	  If you say yes here you get support for the FAN controlled
 	  by the Microcontroller found on the Khadas VIM boards.
+
+config SYSRST_COOLING
+	tristate "System reboot cooling device"
+	depends on OF
+	help
+	  Support for the system reboot cooling device in the Linux thermal
+	  framework.
 
 endif

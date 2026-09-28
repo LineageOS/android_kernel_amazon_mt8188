@@ -17,4 +17,8 @@ static inline char *i2c_hid_get_dmi_hid_report_desc_override(uint8_t *i2c_name,
 { return NULL; }
 #endif
 
+#if IS_ENABLED(CONFIG_HID_TOUCH_METRICS)
+#include "hid_touch_metrics.h"
+#endif
+
 #endif

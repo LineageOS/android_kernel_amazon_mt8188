@@ -211,6 +211,15 @@ extern void usb_notify_remove_bus(struct usb_bus *ubus);
 extern void usb_hub_adjust_deviceremovable(struct usb_device *hdev,
 		struct usb_hub_descriptor *desc);
 
+#if IS_ENABLED(CONFIG_EXTCON_POGO_PIN)
+#define USB_PORT_DEVICE_CONNECT		0X0101
+#define USB_PORT_DEVICE_DISCONNECT	0X0100
+extern void usb_port_register_notify(struct notifier_block *nb);
+extern void usb_port_unregister_notify(struct notifier_block *nb);
+extern void usb_port_notify_add_device(void);
+extern void usb_port_notify_remove_device(void);
+#endif
+
 #ifdef CONFIG_ACPI
 extern int usb_acpi_register(void);
 extern void usb_acpi_unregister(void);

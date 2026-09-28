@@ -13,9 +13,11 @@
 #include <linux/mfd/core.h>
 #include <linux/mfd/mt6323/core.h>
 #include <linux/mfd/mt6358/core.h>
+#include <linux/mfd/mt6359/core.h>
 #include <linux/mfd/mt6397/core.h>
 #include <linux/mfd/mt6323/registers.h>
 #include <linux/mfd/mt6358/registers.h>
+#include <linux/mfd/mt6359/registers.h>
 #include <linux/mfd/mt6397/registers.h>
 
 #define MT6323_RTC_BASE		0x8000
@@ -24,11 +26,24 @@
 #define MT6358_RTC_BASE		0x0588
 #define MT6358_RTC_SIZE		0x3c
 
+#define MT6359_RTC_BASE		0x0588
+#define MT6359_RTC_SIZE		0x3c
+
 #define MT6397_RTC_BASE		0xe000
 #define MT6397_RTC_SIZE		0x3e
 
 #define MT6323_PWRC_BASE	0x8000
 #define MT6323_PWRC_SIZE	0x40
+
+static const struct resource mt6359_auxadc_resources[] = {
+	DEFINE_RES_IRQ_NAMED(MT6359_IRQ_AUXADC_IMP, "imp"),
+};
+
+static const struct resource mt6359_accdet_resources[] = {
+	DEFINE_RES_IRQ_NAMED(MT6359_IRQ_ACCDET, "ACCDET_IRQ"),
+	DEFINE_RES_IRQ_NAMED(MT6359_IRQ_ACCDET_EINT0, "ACCDET_EINT0"),
+	DEFINE_RES_IRQ_NAMED(MT6359_IRQ_ACCDET_EINT1, "ACCDET_EINT1"),
+};
 
 static const struct resource mt6323_rtc_resources[] = {
 	DEFINE_RES_MEM(MT6323_RTC_BASE, MT6323_RTC_SIZE),
@@ -38,6 +53,11 @@ static const struct resource mt6323_rtc_resources[] = {
 static const struct resource mt6358_rtc_resources[] = {
 	DEFINE_RES_MEM(MT6358_RTC_BASE, MT6358_RTC_SIZE),
 	DEFINE_RES_IRQ(MT6358_IRQ_RTC),
+};
+
+static const struct resource mt6359_rtc_resources[] = {
+	DEFINE_RES_MEM(MT6359_RTC_BASE, MT6359_RTC_SIZE),
+	DEFINE_RES_IRQ(MT6359_IRQ_RTC),
 };
 
 static const struct resource mt6397_rtc_resources[] = {
@@ -57,6 +77,28 @@ static const struct resource mt6397_keys_resources[] = {
 
 static const struct resource mt6323_pwrc_resources[] = {
 	DEFINE_RES_MEM(MT6323_PWRC_BASE, MT6323_PWRC_SIZE),
+};
+
+static const struct resource mt6359_gauge_resources[] = {
+	DEFINE_RES_IRQ_NAMED(MT6359_IRQ_FG_BAT_H, "COULOMB_H"),
+	DEFINE_RES_IRQ_NAMED(MT6359_IRQ_FG_BAT_L, "COULOMB_L"),
+	DEFINE_RES_IRQ_NAMED(MT6359_IRQ_BAT2_H, "VBAT_H"),
+	DEFINE_RES_IRQ_NAMED(MT6359_IRQ_BAT2_L, "VBAT_L"),
+	DEFINE_RES_IRQ_NAMED(MT6359_IRQ_NAG_C_DLTV, "NAFG"),
+	DEFINE_RES_IRQ_NAMED(MT6359_IRQ_BATON_BAT_OUT, "BAT_OUT"),
+	DEFINE_RES_IRQ_NAMED(MT6359_IRQ_FG_ZCV, "ZCV"),
+	DEFINE_RES_IRQ_NAMED(MT6359_IRQ_FG_N_CHARGE_L, "FG_N_CHARGE_L"),
+	DEFINE_RES_IRQ_NAMED(MT6359_IRQ_FG_IAVG_H, "FG_IAVG_H"),
+	DEFINE_RES_IRQ_NAMED(MT6359_IRQ_FG_IAVG_L, "FG_IAVG_L"),
+	DEFINE_RES_IRQ_NAMED(MT6359_IRQ_BAT_TEMP_H, "BAT_TMP_H"),
+	DEFINE_RES_IRQ_NAMED(MT6359_IRQ_BAT_TEMP_L, "BAT_TMP_L"),
+};
+
+static const struct resource mt6359_keys_resources[] = {
+	DEFINE_RES_IRQ(MT6359_IRQ_PWRKEY),
+	DEFINE_RES_IRQ(MT6359_IRQ_HOMEKEY),
+	DEFINE_RES_IRQ(MT6359_IRQ_PWRKEY_R),
+	DEFINE_RES_IRQ(MT6359_IRQ_HOMEKEY_R),
 };
 
 static const struct mfd_cell mt6323_devs[] = {
@@ -96,6 +138,53 @@ static const struct mfd_cell mt6358_devs[] = {
 	}, {
 		.name = "mt6358-sound",
 		.of_compatible = "mediatek,mt6358-sound"
+	},
+};
+
+static const struct mfd_cell mt6359_devs[] = {
+	{
+		.name = "mt63xx-debug",
+		.of_compatible = "mediatek,mt63xx-debug",
+	}, {
+		.name = "mt6359-regulator",
+		.of_compatible = "mediatek,mt6359-regulator",
+	}, {
+		.name = "mt6359-rtc",
+		.num_resources = ARRAY_SIZE(mt6359_rtc_resources),
+		.resources = mt6359_rtc_resources,
+		.of_compatible = "mediatek,mt6359-rtc",
+	}, {
+		.name = "mt635x-auxadc",
+		.of_compatible = "mediatek,mt6359-auxadc",
+		.num_resources = ARRAY_SIZE(mt6359_auxadc_resources),
+		.resources = mt6359_auxadc_resources,
+	}, {
+		.name = "mt6359p-gauge",
+		.num_resources = ARRAY_SIZE(mt6359_gauge_resources),
+		.resources = mt6359_gauge_resources,
+		.of_compatible = "mediatek,mt6359p-gauge",
+	}, {
+		.name = "mt6359-sound",
+		.of_compatible = "mediatek,mt6359-sound",
+	}, {
+		.name = "mt6359-efuse",
+		.of_compatible = "mediatek,mt6359-efuse",
+	}, {
+		.name = "mtk-pmic-temp",
+		.of_compatible = "mediatek,mt6359-pmic-temp",
+	}, {
+		.name = "mtk-clock-buffer",
+		.of_compatible = "mediatek,clock_buffer",
+	}, {
+		.name = "mtk-pmic-keys",
+		.num_resources = ARRAY_SIZE(mt6359_keys_resources),
+		.resources = mt6359_keys_resources,
+		.of_compatible = "mediatek,mt6359p-keys",
+	}, {
+		.name = "mt635x-accdet",
+		.of_compatible = "mediatek,mt6359-accdet",
+		.num_resources = ARRAY_SIZE(mt6359_accdet_resources),
+		.resources = mt6359_accdet_resources,
 	},
 };
 
@@ -146,6 +235,14 @@ static const struct chip_data mt6358_core = {
 	.cid_shift = 8,
 	.cells = mt6358_devs,
 	.cell_size = ARRAY_SIZE(mt6358_devs),
+	.irq_init = mt6358_irq_init,
+};
+
+static const struct chip_data mt6359_core = {
+	.cid_addr = MT6359_SWCID,
+	.cid_shift = 8,
+	.cells = mt6359_devs,
+	.cell_size = ARRAY_SIZE(mt6359_devs),
 	.irq_init = mt6358_irq_init,
 };
 
@@ -219,6 +316,9 @@ static const struct of_device_id mt6397_of_match[] = {
 		.compatible = "mediatek,mt6358",
 		.data = &mt6358_core,
 	}, {
+		.compatible = "mediatek,mt6359",
+		.data = &mt6359_core,
+	}, {
 		.compatible = "mediatek,mt6397",
 		.data = &mt6397_core,
 	}, {
@@ -242,7 +342,17 @@ static struct platform_driver mt6397_driver = {
 	.id_table = mt6397_id,
 };
 
-module_platform_driver(mt6397_driver);
+static int __init mt6397_drvinit(void)
+{
+	return platform_driver_register(&mt6397_driver);
+}
+subsys_initcall(mt6397_drvinit);
+
+static void __exit mt6397_drvexit(void)
+{
+	platform_driver_unregister(&mt6397_driver);
+}
+module_exit(mt6397_drvexit);
 
 MODULE_AUTHOR("Flora Fu, MediaTek");
 MODULE_DESCRIPTION("Driver for MediaTek MT6397 PMIC");

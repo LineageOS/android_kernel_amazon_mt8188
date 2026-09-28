@@ -1,0 +1,624 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/**
+ * drivers/power/supply/battery_metrics.c - Battery Metrincs_log driver
+ *
+ * Copyright (C) 2022 Amazon.com Inc.
+ */
+#include <linux/init.h>
+#include <linux/module.h>
+#include <linux/fs.h>
+#include <linux/device.h>
+#include <linux/delay.h>
+#include <linux/kernel.h>
+#include <linux/init.h>
+#include <linux/types.h>
+#include <linux/wait.h>
+#include <linux/slab.h>
+#include <linux/time.h>
+#include <linux/metricslog.h>
+#include <linux/power_supply.h>
+#include "mtk_battery.h"
+#include "mtk_charger.h"
+#include "battery_metrics.h"
+#ifdef CONFIG_AMAZON_SIGN_OF_LIFE
+#include <linux/sign_of_life.h>
+#endif
+#if IS_ENABLED(CONFIG_DRM_MEDIATEK)
+#include <linux/notifier.h>
+#include "mtk_disp_notify.h"
+#endif
+#define BATTERY_METRICS_BUFF_SIZE 1024
+#define BATTERY_METRICS_EVENT_SIZE 128
+#define TRUE                1
+#define FALSE               0
+
+static char g_metrics_buf[BATTERY_METRICS_BUFF_SIZE];
+static char event_buf[BATTERY_METRICS_EVENT_SIZE];
+
+#define bat_metrics_log(domain, fmt, ...)				\
+do {									\
+	memset(g_metrics_buf, 0, BATTERY_METRICS_BUFF_SIZE);		\
+	snprintf(g_metrics_buf, sizeof(g_metrics_buf),	fmt, ##__VA_ARGS__);\
+	log_to_metrics(ANDROID_LOG_INFO, domain, g_metrics_buf);	\
+} while (0)
+
+static struct bat_metrics_data metrics_data;
+
+#if IS_ENABLED(CONFIG_AMAZON_MINERVA_METRICS_LOG)
+#define bat_minerva_log(fmt, ...) \
+do { \
+	memset(event_buf, 0, BATTERY_METRICS_EVENT_SIZE); \
+	snprintf(event_buf, BATTERY_METRICS_EVENT_SIZE - 1, fmt, ##__VA_ARGS__); \
+	bat_metrics_minerva_log(event_buf); \
+} while (0)
+
+static void bat_metrics_minerva_log(char *event)
+{
+	char *fmt = "%s:%s:100:%s,%s,%s,ui_soc=%d;IN,soc=%d;IN,temp=%d;IN,vbat=%d;IN,"
+		"ibat=%d;IN,event=%s;SY:us-east-1";
+
+	minerva_metrics_log(g_metrics_buf, BATTERY_METRICS_BUFF_SIZE, fmt,
+		METRICS_BATTERY_GROUP_ID, METRICS_BATTERY_SCHEMA_ID,
+		PREDEFINED_ESSENTIAL_KEY, PREDEFINED_TZ_KEY, PREDEFINED_DEVICE_ID_KEY,
+		metrics_data.gm->ui_soc, metrics_data.gm->soc, metrics_data.gm->cur_bat_temp,
+		metrics_data.gm->vbat, metrics_data.gm->ibat / 10, event);
+}
+#endif
+
+static int metrics_get_property(enum gauge_property gp, int *val)
+{
+	struct mtk_gauge_sysfs_field_info *attr;
+
+	if (!metrics_data.metrics_psy_ready)
+		return -ENODEV;
+
+	attr = metrics_data.gauge->attr;
+	if (attr == NULL) {
+		pr_err("%s attr = NULL\n", __func__);
+		return -ENODEV;
+	}
+
+	if (attr[gp].prop == gp) {
+		mutex_lock(&metrics_data.gauge->ops_lock);
+		attr[gp].get(metrics_data.gauge, &attr[gp], val);
+		mutex_unlock(&metrics_data.gauge->ops_lock);
+	} else {
+		pr_err("%s attr = NULL\n", __func__);
+		return -ENOTSUPP;
+	}
+
+	return 0;
+}
+
+static int metrics_get_int_property(enum gauge_property gp)
+{
+	int val, ret;
+
+	ret = metrics_get_property(gp, &val);
+	if (ret != 0) {
+		pr_err("%s val = NULL\n", __func__);
+		return 0;
+	}
+
+	return val;
+}
+
+int bat_metrics_adapter_power(u32 type, u32 aicl_ma)
+{
+#if IS_ENABLED(CONFIG_AMAZON_MINERVA_METRICS_LOG)
+	static const int power_category[] = {
+		5000, 7500, 9000, 12000, 15000
+	};
+
+	if (type >= ARRAY_SIZE(power_category))
+		return 0;
+
+	minerva_metrics_log(g_metrics_buf, BATTERY_METRICS_BUFF_SIZE,
+		"%s:%s:100:%s,%s,%s,adapter_power_mw=%d;IN,aicl_ma=%d;IN:us-east-1",
+		METRICS_BATTERY_GROUP_ID, METRICS_BATTERY_ADAPTER_SCHEMA_ID,
+		PREDEFINED_ESSENTIAL_KEY, PREDEFINED_TZ_KEY, PREDEFINED_DEVICE_ID_KEY,
+		power_category[type], (aicl_ma < 0) ? 0 : aicl_ma);
+#elif IS_ENABLED(CONFIG_AMAZON_METRICS_LOG)
+	static const char * const category_text[] = {
+		"5W","7.5W","9W","12W" "15W"
+	};
+
+	if (type >= ARRAY_SIZE(category_text))
+		return 0;
+
+	bat_metrics_log("battery",
+			"adapter_power:def:adapter_%s=1;CT;1,aicl=%d;CT;1:NR",
+			category_text[type], (aicl_ma < 0) ? 0 : aicl_ma);
+#endif
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(bat_metrics_adapter_power);
+
+int bat_metrics_chg_fault(u8 fault_type)
+{
+	static const char * const charger_fault_text[] = {
+		"NONE", "VBUS_OVP", "VBAT_OVP", "SAFETY_TIMEOUT"
+	};
+
+	if (metrics_data.fault_type_old == fault_type)
+		return 0;
+
+	metrics_data.fault_type_old = fault_type;
+#if IS_ENABLED(CONFIG_AMAZON_METRICS_LOG)
+	if (fault_type != 0)
+		bat_metrics_log("battery",
+			"charger:def:charger_fault_type_%s=1;CT;1:NA",
+			charger_fault_text[fault_type]);
+#elif IS_ENABLED(CONFIG_AMAZON_MINERVA_METRICS_LOG)
+	if (fault_type != 0)
+		bat_minerva_log("charger_fault_type_%s",
+			charger_fault_text[fault_type]);
+#endif
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(bat_metrics_chg_fault);
+
+int bat_metrics_bcm_flag(unsigned int bcm_flag)
+{
+	if (metrics_data.bcm_flag_old == bcm_flag)
+		return 0;
+
+	metrics_data.bcm_flag_old = bcm_flag;
+
+#if IS_ENABLED(CONFIG_AMAZON_METRICS_LOG)
+	switch (bcm_flag) {
+	case BCM_FLAG_CHARGE_TIMER:
+		bat_metrics_log("battery", "battery:def:bcm_flag_%s=1;CT;1:NA",
+			 "charge_timer");
+		break;
+	case BCM_FLAG_SECONDARY_THERMAL:
+		bat_metrics_log("battery", "battery:def:bcm_flag_%s=1;CT;1:NA",
+			 "secondary_thermal");
+		break;
+	case BCM_FLAG_NONE:
+		bat_metrics_log("battery", "battery:def:bcm_flag_%s=0;CT;1:NA", "NONE");
+		break;
+	default:
+		break;
+	}
+#elif IS_ENABLED(CONFIG_AMAZON_MINERVA_METRICS_LOG)
+	switch (bcm_flag) {
+	case BCM_FLAG_CHARGE_TIMER:
+		bat_minerva_log("bcm_flag_%s", "charge_timer");
+		break;
+	case BCM_FLAG_SECONDARY_THERMAL:
+		bat_minerva_log("bcm_flag_%s", "secondary_thermal");
+		break;
+	case BCM_FLAG_NONE:
+		bat_minerva_log("bcm_flag_%s", "NONE");
+	default:
+		break;
+	}
+#endif
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(bat_metrics_bcm_flag);
+
+int bat_metrics_chrdet(u32 chr_type)
+{
+	static const char * const charger_type_text[] = {
+		"UNKNOWN", "BATTERY", "UPS", "MAINS", "USB", "USB_DCP", "USB_CDP", "USB_ACA", "USB_TYPE_C",
+		"USB_PD", "USB_PD_DRP", "APPLE_BRICK_ID", "WIRELESS"};
+
+#if IS_ENABLED(CONFIG_AMAZON_METRICS_LOG)
+	if (chr_type > POWER_SUPPLY_TYPE_UNKNOWN &&
+		chr_type <= POWER_SUPPLY_TYPE_WIRELESS) {
+		bat_metrics_log("USBCableEvent",
+			"%s:charger:chg_type_%s=1;CT;1:NR",
+			__func__, charger_type_text[chr_type]);
+	}
+#elif IS_ENABLED(CONFIG_AMAZON_MINERVA_METRICS_LOG)
+	if (chr_type > POWER_SUPPLY_TYPE_UNKNOWN &&
+		chr_type <= POWER_SUPPLY_TYPE_WIRELESS)
+		bat_minerva_log("chg_type_%s", charger_type_text[chr_type]);
+#endif
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(bat_metrics_chrdet);
+
+static int metrics_get_average_current(bool *valid)
+{
+	int iavg = 0;
+	int ver = 0;
+
+	if (!metrics_data.metrics_psy_ready)
+		return -ENODEV;
+
+	ver = metrics_get_int_property(GAUGE_PROP_HW_VERSION);
+	if(!ver)
+		return -ENODEV;
+
+	if (metrics_data.gm->disableGM30) {
+		iavg = 0;
+	} else {
+		if (ver >= GAUGE_HW_V1000 &&
+			ver < GAUGE_HW_V2000) {
+			iavg = metrics_data.gm->sw_iavg;
+		} else {
+			*valid = metrics_data.gm->gauge->fg_hw_info.current_avg_valid;
+			iavg =
+			metrics_get_int_property(GAUGE_PROP_AVERAGE_CURRENT);
+		}
+	}
+
+	return iavg;
+}
+int bat_metrics_chg_state(u32 chg_sts)
+{
+	int vbat, ibat_avg;
+	bool valid = 0;
+	char *chg_sts_str;
+
+	if (!metrics_data.metrics_psy_ready)
+		return -ENODEV;
+
+	if (metrics_data.chg_sts_old == chg_sts)
+		return 0;
+
+	vbat = metrics_get_int_property(GAUGE_PROP_BATTERY_VOLTAGE);
+	ibat_avg = metrics_get_average_current(&valid);
+	metrics_data.chg_sts_old = chg_sts;
+	chg_sts_str = (chg_sts == POWER_SUPPLY_STATUS_CHARGING) ? "CHARGING" : "DISCHARGING";
+
+#if IS_ENABLED(CONFIG_AMAZON_METRICS_LOG)
+	bat_metrics_log("battery",
+		"charger:def:POWER_STATUS_%s=1;CT;1,cap=%u;CT;1,mv=%d;CT;1,current_avg=%d;CT;1:NR",
+		chg_sts_str, metrics_data.gm->soc, vbat, ibat_avg);
+#elif IS_ENABLED(CONFIG_AMAZON_MINERVA_METRICS_LOG)
+	bat_minerva_log("POWER_STATUS_%s", chg_sts_str);
+#endif
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(bat_metrics_chg_state);
+
+int bat_metrics_critical_shutdown(void)
+{
+#if IS_ENABLED(CONFIG_AMAZON_METRICS_LOG)
+	bat_metrics_log("battery", "battery:def:critical_shutdown=1;CT;1:HI");
+#elif IS_ENABLED(CONFIG_AMAZON_MINERVA_METRICS_LOG)
+	bat_minerva_log("critical_shutdown");
+#endif
+#ifdef CONFIG_AMAZON_SIGN_OF_LIFE
+	life_cycle_set_special_mode(LIFE_CYCLE_SMODE_LOW_BATTERY);
+#endif
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(bat_metrics_critical_shutdown);
+
+int bat_metrics_top_off_mode(bool is_on)
+{
+	int vbat;
+
+	if (!metrics_data.metrics_psy_ready)
+		return -ENODEV;
+
+	if (metrics_data.is_top_off_mode == is_on)
+		return 0;
+
+	vbat = metrics_get_int_property(GAUGE_PROP_BATTERY_VOLTAGE);
+	metrics_data.is_top_off_mode = is_on;
+#if IS_ENABLED(CONFIG_AMAZON_METRICS_LOG)
+	if (is_on) {
+		bat_metrics_log("battery",
+		"battery:def:Charging_Over_7days=1;CT;1,Bat_Vol=%d;CT;1,UI_SOC=%d;CT;1,SOC=%d;CT;1,Bat_Temp=%d;CT;1:NA",
+		vbat, metrics_data.gm->ui_soc, metrics_data.gm->soc,
+		metrics_data.gm->cur_bat_temp);
+	}
+#elif IS_ENABLED(CONFIG_AMAZON_MINERVA_METRICS_LOG)
+	if (is_on)
+		bat_minerva_log("Charging_Over_7days");
+#endif
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(bat_metrics_top_off_mode);
+
+int bat_metrics_aging(int aging_factor, int bat_cycle, int qmax)
+{
+#if IS_ENABLED(CONFIG_AMAZON_MINERVA_METRICS_LOG)
+	char dimensions_buf[128];
+#endif
+	if (metrics_data.aging_factor_old == aging_factor &&
+			metrics_data.bat_cycle_old == bat_cycle && metrics_data.qmax_old == qmax)
+			return 0;
+
+	metrics_data.aging_factor_old = aging_factor;
+	metrics_data.bat_cycle_old = bat_cycle;
+	metrics_data.qmax_old = qmax;
+
+#if IS_ENABLED(CONFIG_AMAZON_METRICS_LOG)
+	bat_metrics_log("battery",
+			"battery:def:aging_factor=%d;CT;1,bat_cycle=%d;CT;1,qmax=%d;CT;1:NA",
+			aging_factor / 100, bat_cycle, qmax / 10);
+#elif IS_ENABLED(CONFIG_AMAZON_MINERVA_METRICS_LOG)
+	snprintf(dimensions_buf, 128,
+		"\"aging_factor\"#\"%d\"$\"bat_cycle\"#\"%d\"", aging_factor / 100, bat_cycle);
+	log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+		VITALS_BATTERY_GROUP_ID, VITALS_BATTERY_AGING_SCHEMA_ID,
+		"battery", "battery", "aging",
+		NULL, qmax / 10, "rate",
+		NULL, VITALS_NORMAL, dimensions_buf, NULL);
+#endif
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(bat_metrics_aging);
+
+int bat_metrics_invalid_charger(void)
+{
+#if IS_ENABLED(CONFIG_AMAZON_METRICS_LOG)
+	bat_metrics_log("battery", "battery:def:invalid_charger=1;CT;1:NA");
+#elif IS_ENABLED(CONFIG_AMAZON_MINERVA_METRICS_LOG)
+	bat_minerva_log("invalid_charger");
+#endif
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(bat_metrics_invalid_charger);
+
+int bat_metrics_dpm_eoc_mode(int vcharge)
+{
+#if IS_ENABLED(CONFIG_AMAZON_METRICS_LOG)
+	bat_metrics_log("battery",
+		"battery:def:dpm_eoc=1;CT;1,Bat_Vol=%d;CT;1,UI_SOC=%d;CT;1,SOC=%d;CT;1,Vcharge=%d;CT;1:NA",
+		metrics_get_int_property(GAUGE_PROP_BATTERY_VOLTAGE),
+		metrics_data.gm->ui_soc, metrics_data.gm->soc, vcharge / 1000);
+#elif IS_ENABLED(CONFIG_AMAZON_MINERVA_METRICS_LOG)
+	bat_minerva_log("dpm_eoc");
+#endif
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(bat_metrics_dpm_eoc_mode);
+
+#if IS_ENABLED(CONFIG_DRM_MEDIATEK)
+int bat_metrics_screen_on(void)
+{
+	struct timespec64 screen_on_time;
+	struct timespec64 diff;
+	struct screen_state *screen = &metrics_data.screen;
+	long elaps_msec;
+	int soc, diff_soc;
+#if IS_ENABLED(CONFIG_AMAZON_MINERVA_METRICS_LOG)
+	char dimensions_buf[128];
+#endif
+
+	if (!metrics_data.metrics_psy_ready)
+		return -ENODEV;
+
+	screen->screen_state = SCREEN_ON;
+	soc = metrics_data.gm->soc;
+	ktime_get_boottime_ts64(&screen_on_time);
+	if (screen->screen_on_soc == -1 || screen->screen_off_soc == -1)
+		goto exit;
+
+	diff_soc = screen->screen_off_soc - soc;
+	diff = timespec64_sub(screen_on_time, screen->screen_off_time);
+	elaps_msec = diff.tv_sec * 1000 + diff.tv_nsec / NSEC_PER_MSEC;
+	pr_info("%s: diff_soc: %d[%d -> %d] elapsed=%ld\n", __func__,
+		diff_soc, screen->screen_off_soc, soc, elaps_msec);
+#if IS_ENABLED(CONFIG_AMAZON_METRICS_LOG)
+	bat_metrics_log("drain_metrics",
+		"screen_off_drain:def:value=%d;CT;1,elapsed=%ld;TI;1:NR",
+		diff_soc, elaps_msec);
+#elif IS_ENABLED(CONFIG_AMAZON_MINERVA_METRICS_LOG)
+	snprintf(dimensions_buf, 128, "\"diff_soc\"#\"%d\"", diff_soc);
+	log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+			VITALS_BATTERY_GROUP_ID, VITALS_BATTERY_DRAIN_SCHEMA_ID,
+			"battery", "battery", "drain",
+			"screen_off_drain", elaps_msec, "ms",
+			NULL, VITALS_NORMAL,
+			dimensions_buf, NULL);
+#endif
+exit:
+	screen->screen_on_time = screen_on_time;
+	screen->screen_on_soc = soc;
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(bat_metrics_screen_on);
+
+int bat_metrics_screen_off(void)
+{
+	struct timespec64 screen_off_time;
+	struct timespec64 diff;
+	struct screen_state *screen = &metrics_data.screen;
+	long elaps_msec;
+	int soc, diff_soc;
+#if IS_ENABLED(CONFIG_AMAZON_MINERVA_METRICS_LOG)
+	char dimensions_buf[128];
+#endif
+
+	if (!metrics_data.metrics_psy_ready)
+		return -ENODEV;
+
+	screen->screen_state = SCREEN_OFF;
+	soc = metrics_data.gm->soc;
+	ktime_get_boottime_ts64(&screen_off_time);
+	if (screen->screen_on_soc == -1 || screen->screen_off_soc == -1)
+		goto exit;
+
+	diff_soc = screen->screen_on_soc - soc;
+	diff = timespec64_sub(screen_off_time, screen->screen_on_time);
+	elaps_msec = diff.tv_sec * 1000 + diff.tv_nsec / NSEC_PER_MSEC;
+	pr_info("%s: diff_soc: %d[%d -> %d] elapsed=%ld\n", __func__,
+		diff_soc, screen->screen_on_soc, soc, elaps_msec);
+#if IS_ENABLED(CONFIG_AMAZON_METRICS_LOG)
+	bat_metrics_log("drain_metrics",
+		"screen_on_drain:def:value=%d;CT;1,elapsed=%ld;TI;1:NR",
+		diff_soc, elaps_msec);
+#elif IS_ENABLED(CONFIG_AMAZON_MINERVA_METRICS_LOG)
+	snprintf(dimensions_buf, 128, "\"diff_soc\"#\"%d\"", diff_soc);
+	log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+			VITALS_BATTERY_GROUP_ID, VITALS_BATTERY_DRAIN_SCHEMA_ID,
+			"battery", "battery", "drain",
+			"screen_on_drain", elaps_msec, "ms",
+			NULL, VITALS_NORMAL,
+			dimensions_buf, NULL);
+#endif
+
+exit:
+	screen->screen_off_time = screen_off_time;
+	screen->screen_off_soc = soc;
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(bat_metrics_screen_off);
+
+static int pm_notifier_callback(struct notifier_block *notify,
+			unsigned long event, void *data)
+{
+	int *blank;
+
+	if (data && event == MTK_DISP_EARLY_EVENT_BLANK) {
+		blank = (int*)data;
+		if (*blank == MTK_DISP_BLANK_UNBLANK)
+			bat_metrics_screen_on();
+		else if (*blank == MTK_DISP_BLANK_POWERDOWN)
+			bat_metrics_screen_off();
+	}
+
+	return 0;
+}
+#endif
+
+#define SUSPEND_RESUME_INTEVAL_MIN 30
+int bat_metrics_suspend(void)
+{
+	struct pm_state *pm = &metrics_data.pm;
+	ktime_get_boottime_ts64(&pm->suspend_ts);
+	pm->suspend_bat_car = metrics_get_int_property(GAUGE_PROP_COULOMB);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(bat_metrics_suspend);
+
+int bat_metrics_resume(void)
+{
+	struct pm_state *pm = &metrics_data.pm;
+	struct timespec64 resume_ts;
+	struct timespec64 sleep_ts;
+	int diff_bat_car, ibat_avg;
+	int resume_bat_car = -1;
+
+	ktime_get_boottime_ts64(&resume_ts);
+	sleep_ts = timespec64_sub(resume_ts, pm->suspend_ts);
+	if (sleep_ts.tv_sec < SUSPEND_RESUME_INTEVAL_MIN)
+		goto exit;
+
+	resume_bat_car = metrics_get_int_property(GAUGE_PROP_COULOMB);
+	diff_bat_car = resume_bat_car - pm->suspend_bat_car;
+	ibat_avg = diff_bat_car * 3600 / sleep_ts.tv_sec / 10;
+	pr_info("IBAT_AVG: sleep: diff_car[%d %d]=%d,time=%ld,ibat_avg=%d\n",
+			pm->suspend_bat_car, resume_bat_car,
+			diff_bat_car, sleep_ts.tv_sec, ibat_avg);
+
+exit:
+	pm->resume_bat_car = resume_bat_car;
+	pm->resume_ts = resume_ts;
+	pm->resume_bat_car = resume_bat_car;
+	return 0;
+}
+EXPORT_SYMBOL_GPL(bat_metrics_resume);
+
+static void bat_metrics_work(struct work_struct *work)
+{
+	struct bat_metrics_data *data =
+		container_of(work, struct bat_metrics_data, dwork.work);
+	struct iavg_data *iavg = &data->iavg;
+	struct timespec64 ts_now, diff_ts;
+
+	int bat_car, diff_bat_car, ibat_now, ibat_avg, sign;
+	int screen_state = metrics_data.screen.screen_state;
+
+	ktime_get_boottime_ts64(&ts_now);
+	bat_car = metrics_get_int_property(GAUGE_PROP_COULOMB);
+	if (iavg->pre_bat_car == -1)
+		goto again;
+
+	if (screen_state != iavg->pre_screen_state) {
+		pr_info("%s: screen state change, drop data\n", __func__);
+		goto again;
+	}
+
+	diff_ts = timespec64_sub(ts_now, iavg->last_ts);
+	ibat_now = metrics_get_int_property(GAUGE_PROP_BATTERY_CURRENT); /* mA */
+	if (bat_car > iavg->pre_bat_car)
+		sign = 1;
+	else
+		sign = -1;
+	diff_bat_car = abs(iavg->pre_bat_car - bat_car); /* 0.1mAh */
+	ibat_avg = sign * diff_bat_car * 3600 / diff_ts.tv_sec / 10; /* mA */
+
+	pr_info("IBAT_AVG: %s: diff_car[%d %d]=%d,time=%ld,ibat=%d,ibat_avg=%d\n",
+			screen_state == SCREEN_ON ? "screen_on" : "screen_off",
+			iavg->pre_bat_car, bat_car, diff_bat_car,
+			diff_ts.tv_sec, ibat_now, ibat_avg);
+
+again:
+	iavg->pre_bat_car = bat_car;
+	iavg->last_ts = ts_now;
+	iavg->pre_screen_state = screen_state;
+	queue_delayed_work(system_freezable_wq, &data->dwork, 10 * HZ);
+}
+
+int bat_metrics_init(void)
+{
+	int ret = 0;
+	struct power_supply *gauge_psy;
+	struct power_supply *battery_psy;
+
+	metrics_data.screen.screen_on_soc = -1;
+	metrics_data.screen.screen_off_soc = -1;
+	metrics_data.pm.suspend_soc = -1;
+	metrics_data.pm.resume_soc = -1;
+	metrics_data.pm.suspend_bat_car = -1;
+	metrics_data.pm.resume_bat_car = -1;
+	metrics_data.iavg.pre_bat_car = -1;
+
+	gauge_psy = power_supply_get_by_name("mtk-gauge");
+	if (gauge_psy == NULL)
+		return -ENODEV;
+
+	battery_psy = power_supply_get_by_name("battery");
+	if (battery_psy == NULL)
+		return -ENODEV;
+
+	metrics_data.gauge = (struct mtk_gauge *)power_supply_get_drvdata(gauge_psy);
+	metrics_data.gm = (struct mtk_battery *)power_supply_get_drvdata(battery_psy);
+	metrics_data.metrics_psy_ready = TRUE;
+
+	INIT_DELAYED_WORK(&metrics_data.dwork, bat_metrics_work);
+	queue_delayed_work(system_freezable_wq, &metrics_data.dwork, 0);
+#if IS_ENABLED(CONFIG_DRM_MEDIATEK)
+	metrics_data.pm_notifier.notifier_call = pm_notifier_callback;
+	ret = mtk_disp_notifier_register("battery_metrics", &metrics_data.pm_notifier);
+	if (ret)
+		pr_err("%s: fail to register pm notifier\n", __func__);
+#endif
+	return ret;
+}
+EXPORT_SYMBOL_GPL(bat_metrics_init);
+
+void bat_metrics_uninit(void)
+{
+	metrics_data.metrics_psy_ready = FALSE;
+#if IS_ENABLED(CONFIG_DRM_MEDIATEK)
+	mtk_disp_notifier_unregister(&metrics_data.pm_notifier);
+#endif
+}
+EXPORT_SYMBOL_GPL(bat_metrics_uninit);
+
+MODULE_DESCRIPTION("Amazon battery metrics");
+MODULE_LICENSE("GPL v2");

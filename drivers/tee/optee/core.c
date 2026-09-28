@@ -744,6 +744,17 @@ static int optee_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, optee);
 
+#if IS_ENABLED(CONFIG_OPTEE_REE_CLK_CTRL)
+	rc = optee_clkctrl_init(pdev);
+	if (rc)
+		goto err;
+#endif
+#if IS_ENABLED(CONFIG_OPTEE_REE_CONSOLE)
+	rc = optee_kreeconsole_init();
+	if (rc)
+		goto err;
+#endif
+
 	rc = optee_enumerate_devices(PTA_CMD_GET_DEVICES);
 	if (rc) {
 		optee_remove(pdev);

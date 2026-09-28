@@ -9,6 +9,7 @@
 #include <linux/cred.h>
 #include <linux/fs.h>
 #include <linux/idr.h>
+#include <linux/mm.h>
 #include <linux/module.h>
 #include <linux/overflow.h>
 #include <linux/slab.h>
@@ -1185,6 +1186,121 @@ int tee_client_invoke_func(struct tee_context *ctx,
 	return ctx->teedev->desc->ops->invoke_func(ctx, arg, param);
 }
 EXPORT_SYMBOL_GPL(tee_client_invoke_func);
+
+int tee_client_register_shm(struct tee_context *ctx,
+			    unsigned long addr,
+			    size_t length,
+			    int *id)
+{
+	struct tee_shm *shm;
+	int rc;
+	unsigned long start;
+	int ret;
+
+	if (!ctx->teedev->desc->ops->shm_register ||
+	    !ctx->teedev->desc->ops->shm_unregister) {
+		return -EOPNOTSUPP;
+	}
+
+	teedev_ctx_get(ctx);
+
+	shm = kzalloc(sizeof(*shm), GFP_KERNEL);
+	if (!shm) {
+		ret = -ENOMEM;
+		goto err;
+	}
+
+	refcount_set(&shm->refcount, 1);
+	shm->flags = TEE_SHM_REGISTER;
+	shm->ctx = ctx;
+	shm->id = -1;
+	start = rounddown(addr, PAGE_SIZE);
+	shm->offset = addr - start;
+	shm->size = length;
+	shm->num_pages = (roundup(addr + length, PAGE_SIZE) - start) /
+			 PAGE_SIZE;
+	shm->pages = kcalloc(shm->num_pages, sizeof(*shm->pages), GFP_KERNEL);
+	if (!shm->pages) {
+		ret = -ENOMEM;
+		goto err;
+	}
+
+	for (rc = 0; rc < shm->num_pages; rc++)
+		shm->pages[rc] = virt_to_page(start + PAGE_SIZE * rc);
+
+	mutex_lock(&ctx->teedev->mutex);
+	shm->id = idr_alloc(&ctx->teedev->idr, shm, 1, 0, GFP_KERNEL);
+	mutex_unlock(&ctx->teedev->mutex);
+
+	if (shm->id < 0) {
+		ret = shm->id;
+		goto err;
+	}
+
+	rc = ctx->teedev->desc->ops->shm_register(ctx, shm, shm->pages,
+					     shm->num_pages, start);
+	if (rc) {
+		ret = rc;
+		goto err;
+	}
+
+	*id = shm->id;
+
+	return 0;
+err:
+	if (shm) {
+		if (shm->id >= 0) {
+			mutex_lock(&ctx->teedev->mutex);
+			idr_remove(&ctx->teedev->idr, shm->id);
+			mutex_unlock(&ctx->teedev->mutex);
+		}
+		kfree(shm->pages);
+	}
+	kfree(shm);
+	teedev_ctx_put(ctx);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(tee_client_register_shm);
+
+int tee_client_unregister_shm(struct tee_context *ctx, int id)
+{
+	struct tee_shm *shm;
+
+	if (!ctx->teedev->desc->ops->shm_register ||
+	    !ctx->teedev->desc->ops->shm_unregister) {
+		return -EOPNOTSUPP;
+	}
+
+	shm = tee_shm_get_from_id(ctx, id);
+
+	if (IS_ERR_OR_NULL(shm))
+		return -EINVAL;
+	if (ctx != shm->ctx)
+		return -EINVAL;
+	if (shm->flags & TEE_SHM_POOL)
+		return -EINVAL;
+
+	mutex_lock(&ctx->teedev->mutex);
+	idr_remove(&ctx->teedev->idr, shm->id);
+	mutex_unlock(&ctx->teedev->mutex);
+
+	if (shm->flags & TEE_SHM_REGISTER) {
+		int rc = ctx->teedev->desc->ops->shm_unregister(ctx, shm);
+
+		if (rc)
+			dev_err(ctx->teedev->dev.parent,
+				"unregister shm %p failed: %d", shm, rc);
+
+		kfree(shm->pages);
+	}
+
+	if (shm->ctx)
+		teedev_ctx_put(shm->ctx);
+
+	kfree(shm);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(tee_client_unregister_shm);
 
 int tee_client_cancel_req(struct tee_context *ctx,
 			  struct tee_ioctl_cancel_arg *arg)

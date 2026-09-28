@@ -31,6 +31,9 @@ struct ion_device {
 	DECLARE_BITMAP(heap_ids, ION_NUM_MAX_HEAPS);
 	struct plist_head heaps;
 	struct dentry *debug_root;
+#if (IS_ENABLED(CONFIG_MTK_ION_DEBUG) && IS_ENABLED(CONFIG_PROC_FS))
+	struct proc_dir_entry *proc_root;
+#endif
 	int heap_cnt;
 };
 

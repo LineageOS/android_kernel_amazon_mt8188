@@ -10,6 +10,10 @@ menuconfig INPUT_TOUCHSCREEN
 
 	  If unsure, say Y.
 
+source "drivers/input/touchscreen/FT8205/Kconfig"
+source "drivers/input/touchscreen/NT36523/Kconfig"
+source "drivers/input/touchscreen/ILITEK_V3/Kconfig"
+
 if INPUT_TOUCHSCREEN
 
 config TOUCHSCREEN_PROPERTIES
@@ -1334,5 +1338,12 @@ config TOUCHSCREEN_ZINITIX
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called zinitix.
+
+config TOUCHSCREEN_MTK_TOUCH
+       string "Touch IC name for Mediatek package"
+       help
+         Set touch IC name if you have touch panel.
+
+         To compile this dirver for used touch IC.
 
 endif

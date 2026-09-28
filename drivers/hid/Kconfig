@@ -92,6 +92,14 @@ config HID_GENERIC
 menu "Special HID drivers"
 	depends on HID
 
+config HID_SANIDINE
+    tristate "Sanidine USB(Pogo) Keyboard"
+    depends on USB_HID
+    help
+      Support for Sanidine USB(Pogo) Keyboard
+
+      Say Y here if you want to enable support for Kawartha KB
+
 config HID_A4TECH
 	tristate "A4TECH mice"
 	depends on HID
@@ -1212,5 +1220,15 @@ source "drivers/hid/usbhid/Kconfig"
 source "drivers/hid/i2c-hid/Kconfig"
 
 source "drivers/hid/intel-ish-hid/Kconfig"
+
+source "drivers/hid/ILITEK_HID_over_I2c/Kconfig"
+
+source "drivers/hid/i2c_hid_of_nvt_ts/Kconfig"
+
+source "drivers/hid/hid-focal/Kconfig"
+
+source "drivers/hid/stylus/Kconfig"
+
+source "drivers/hid/hid_touch_metrics/Kconfig"
 
 endmenu

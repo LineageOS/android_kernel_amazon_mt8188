@@ -4,6 +4,12 @@
  * Author: Honghui Zhang <honghui.zhang@mediatek.com>
  */
 
+#ifdef CONFIG_MTK_IOMMU_MT8XXX
+
+#include "mtk_iommu_mt8xxx.h"
+
+#else
+
 #ifndef _MTK_IOMMU_H_
 #define _MTK_IOMMU_H_
 
@@ -19,10 +25,10 @@
 #include <soc/mediatek/smi.h>
 #include <dt-bindings/memory/mtk-memory-port.h>
 
-#define MTK_LARB_COM_MAX	8
+#define MTK_LARB_COM_MAX	16
 #define MTK_LARB_SUBCOM_MAX	4
 
-#define MTK_IOMMU_GROUP_MAX	8
+#define MTK_IOMMU_GROUP_MAX	MTK_M4U_DOM_NR_MAX
 
 struct mtk_iommu_suspend_reg {
 	union {
@@ -36,16 +42,57 @@ struct mtk_iommu_suspend_reg {
 	u32				ivrp_paddr;
 	u32				vld_pa_rng;
 	u32				wr_len_ctrl;
+	u32				tbw_id;
 };
 
 enum mtk_iommu_plat {
 	M4U_MT2701,
 	M4U_MT2712,
 	M4U_MT6779,
+	M4U_MT6853,
+	M4U_MT6873,
+	M4U_MT6879,
+	M4U_MT6983,
 	M4U_MT8167,
+	M4U_MT6893,
 	M4U_MT8173,
 	M4U_MT8183,
 	M4U_MT8192,
+};
+
+enum mtk_iommu_type {
+	MM_IOMMU,
+	APU_IOMMU,
+	PERI_IOMMU,
+	TYPE_NUM
+};
+
+enum mm_iommu {
+	DISP_IOMMU,
+	MDP_IOMMU,
+	MM_IOMMU_NUM
+};
+
+enum apu_iommu {
+	APU_IOMMU0,
+	APU_IOMMU1,
+	APU_IOMMU_NUM
+};
+
+enum peri_iommu {
+	PERI_IOMMU_M4,
+	PERI_IOMMU_M6,
+	PERI_IOMMU_M7,
+	PERI_IOMMU_NUM
+};
+
+enum IOMMU_BANK {
+	IOMMU_BK0, /* normal bank */
+	IOMMU_BK1, /* protected bank1 */
+	IOMMU_BK2, /* protected bank2 */
+	IOMMU_BK3, /* protected bank3 */
+	IOMMU_BK4, /* secure bank */
+	IOMMU_BK_NUM
 };
 
 struct mtk_iommu_iova_region;
@@ -55,6 +102,11 @@ struct mtk_iommu_plat_data {
 	u32                 flags;
 	u32                 inv_sel_reg;
 
+	u32		    tbw_reg_val;
+	u32		    reg_val;
+	u32                 normal_dom;
+	int		    iommu_id;
+	enum mtk_iommu_type iommu_type;
 	unsigned int				iova_region_nr;
 	const struct mtk_iommu_iova_region	*iova_region;
 	unsigned char       larbid_remap[MTK_LARB_COM_MAX][MTK_LARB_SUBCOM_MAX];
@@ -65,7 +117,9 @@ struct mtk_iommu_domain;
 struct mtk_iommu_data {
 	void __iomem			*base;
 	int				irq;
+	int				bk_irq[IOMMU_BK_NUM];
 	struct device			*dev;
+	struct device			*bk_dev[IOMMU_BK_NUM];
 	struct clk			*bclk;
 	phys_addr_t			protect_base; /* protect memory base */
 	struct mtk_iommu_suspend_reg	reg;
@@ -81,6 +135,7 @@ struct mtk_iommu_data {
 	struct dma_iommu_mapping	*mapping; /* For mtk_iommu_v1.c */
 
 	struct mutex			mutex; /* Protect m4u_group/m4u_dom above */
+	struct timer_list		iommu_isr_pause_timer;
 
 	struct list_head		list;
 	struct mtk_smi_larb_iommu	larb_imu[MTK_LARB_NR_MAX];
@@ -110,4 +165,25 @@ static inline void mtk_iommu_unbind(struct device *dev)
 	component_unbind_all(dev, &data->larb_imu);
 }
 
+#if IS_ENABLED(CONFIG_MTK_IOMMU)
+
+int dev_is_normal_region(struct device *dev);
+
+void mtk_dump_reg_for_hang_issue(uint32_t type);
+
+#else
+
+int dev_is_normal_region(struct device *dev)
+{
+	return 0;
+}
+
+void mtk_dump_reg_for_hang_issue(uint32_t type)
+{
+}
+
 #endif
+
+#endif /* _MTK_IOMMU_H_ */
+
+#endif /* CONFIG_MTK_IOMMU_MT8XXX */

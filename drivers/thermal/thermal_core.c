@@ -5,6 +5,7 @@
  *  Copyright (C) 2008 Intel Corp
  *  Copyright (C) 2008 Zhang Rui <rui.zhang@intel.com>
  *  Copyright (C) 2008 Sujith Thomas <sujith.thomas@intel.com>
+ *  Copyright 2022 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
@@ -171,6 +172,7 @@ int thermal_register_governor(struct thermal_governor *governor)
 
 	return err;
 }
+EXPORT_SYMBOL_GPL(thermal_register_governor);
 
 void thermal_unregister_governor(struct thermal_governor *governor)
 {
@@ -197,6 +199,7 @@ void thermal_unregister_governor(struct thermal_governor *governor)
 exit:
 	mutex_unlock(&thermal_governor_lock);
 }
+EXPORT_SYMBOL_GPL(thermal_unregister_governor);
 
 int thermal_zone_device_set_policy(struct thermal_zone_device *tz,
 				   char *policy)

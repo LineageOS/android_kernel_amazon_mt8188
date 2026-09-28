@@ -629,7 +629,7 @@ static void ep0_read_setup(struct mtu3 *mtu, struct usb_ctrlrequest *setup)
 		mtu->ep0_state = MU3D_EP0_STATE_TX;
 	} else {
 		mtu3_writel(mtu->mac_base, U3D_EP0CSR,
-			(csr | EP0_SETUPPKTRDY) & (~EP0_DPHTX));
+			(csr /*| EP0_SETUPPKTRDY*/) & (~EP0_DPHTX));
 		mtu->ep0_state = MU3D_EP0_STATE_RX;
 	}
 }
@@ -820,7 +820,13 @@ static int ep0_queue(struct mtu3_ep *mep, struct mtu3_request *mreq)
 		/* needn't giveback the request for handling delay STATUS */
 		return 0;
 	}
+	if (mtu->ep0_state == MU3D_EP0_STATE_RX) {
+		u32 csr;
 
+		csr = mtu3_readl(mtu->mac_base, U3D_EP0CSR);
+		csr |= EP0_SETUPPKTRDY;
+		mtu3_writel(mtu->mac_base, U3D_EP0CSR, csr);
+	}
 	if (!list_empty(&mep->req_list))
 		return -EBUSY;
 

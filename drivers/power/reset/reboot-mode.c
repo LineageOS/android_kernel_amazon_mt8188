@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Copyright (c) 2016, Fuzhou Rockchip Electronics Co., Ltd
+ *
+ * Copyright 2022 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  */
 
 #include <linux/device.h>
@@ -44,6 +46,17 @@ static int reboot_mode_notify(struct notifier_block *this,
 {
 	struct reboot_mode_driver *reboot;
 	unsigned int magic;
+
+	/* mark silent OTA flag */
+	if (cmd && (strstr(cmd, "quiescent"))) {
+		rtc_mark_quiescent(1);
+	} else {
+		rtc_mark_quiescent(0);
+	}
+	if (cmd && (!strcmp(cmd, "recovery-update")
+			|| !strcmp(cmd, "recovery,quiescent")
+			|| !strcmp(cmd, "recovery-update,quiescent")))
+		cmd = "recovery";
 
 	reboot = container_of(this, struct reboot_mode_driver, reboot_notifier);
 	magic = get_reboot_mode_magic(reboot, cmd);
@@ -103,6 +116,9 @@ int reboot_mode_register(struct reboot_mode_driver *reboot)
 
 	reboot->reboot_notifier.notifier_call = reboot_mode_notify;
 	register_reboot_notifier(&reboot->reboot_notifier);
+
+	/* clear quiescent mode*/
+	rtc_mark_quiescent(0);
 
 	return 0;
 

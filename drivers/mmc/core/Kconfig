@@ -62,6 +62,12 @@ config MMC_BLOCK_MINORS
 
 	  If unsure, say 8 here.
 
+config MMC_EXPOSE_START_HOST_API
+	bool "MMC start/stop host API support"
+	help
+	  If you say Y here, the code will be added to expose start/stop
+	  host api.
+
 config SDIO_UART
 	tristate "SDIO UART/GPS class support"
 	depends on TTY
@@ -89,3 +95,11 @@ config MMC_CRYPTO
 	  Enabling this makes it possible for the kernel to use the crypto
 	  capabilities of the MMC device (if present) to perform crypto
 	  operations on data being transferred to/from the device.
+
+config MMC_REALTIME_LIFETIME
+	bool "MMC_REALTIME_LIFETIME"
+	help
+	  At previous design, the sysnode life_time, pre_eol_info,
+	  device_life_time_est_typ_a and device_life_time_est_typ_b can
+	  not real-time refresh.
+	  Enable this config to support real-time refresh above four sysnodes.

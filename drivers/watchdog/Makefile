@@ -33,6 +33,8 @@ obj-$(CONFIG_WDTPCI) += wdt_pci.o
 # USB-based Watchdog Cards
 obj-$(CONFIG_USBPCWATCHDOG) += pcwd_usb.o
 
+obj-$(CONFIG_MAGIC_SYSRQ_WD_TEST) += mtk_wdt_func.o
+
 # ALPHA Architecture
 
 # ARM Architecture

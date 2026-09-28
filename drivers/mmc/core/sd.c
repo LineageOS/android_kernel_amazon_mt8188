@@ -267,7 +267,7 @@ static int mmc_read_ssr(struct mmc_card *card)
 
 	for (i = 0; i < 16; i++)
 		card->raw_ssr[i] = be32_to_cpu(raw_ssr[i]);
-
+	card->sd_speed_class = card->raw_ssr[2]>>24;
 	kfree(raw_ssr);
 
 	/*
@@ -699,7 +699,8 @@ MMC_DEV_ATTR(oemid, "0x%04x\n", card->cid.oemid);
 MMC_DEV_ATTR(serial, "0x%08x\n", card->cid.serial);
 MMC_DEV_ATTR(ocr, "0x%08x\n", card->ocr);
 MMC_DEV_ATTR(rca, "0x%04x\n", card->rca);
-
+MMC_DEV_ATTR(sclass, "0x%0x\n", card->sd_speed_class);
+MMC_DEV_ATTR(timing, "%u\n", (&card->host->ios)->timing);
 
 static ssize_t mmc_dsr_show(struct device *dev,
                            struct device_attribute *attr,
@@ -763,6 +764,8 @@ static struct attribute *sd_std_attrs[] = {
 	&dev_attr_ocr.attr,
 	&dev_attr_rca.attr,
 	&dev_attr_dsr.attr,
+	&dev_attr_sclass.attr,
+	&dev_attr_timing.attr,
 	NULL,
 };
 

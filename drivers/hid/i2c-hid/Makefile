@@ -2,7 +2,7 @@
 #
 # Makefile for the I2C input drivers
 #
-
+ccflags-y += -I$(srctree)/drivers/hid/hid_touch_metrics/
 obj-$(CONFIG_I2C_HID)				+= i2c-hid.o
 
 i2c-hid-objs					=  i2c-hid-core.o

@@ -1,0 +1,34 @@
+/* SPDX-License-Identifier: GPL-2.0 */
+/*
+ * Copyright (c) 2021 MediaTek Inc.
+ */
+
+#ifndef __MTK_CM_MGR_PLATFORM_H__
+#define __MTK_CM_MGR_PLATFORM_H__
+
+#if IS_ENABLED(CONFIG_MTK_DRAMC)
+#include <soc/mediatek/dramc.h>
+#endif /* CONFIG_MTK_DRAMC */
+
+enum DRAM_TYPE_EXT {
+	TYPE_EXT_DDR1 = 1,
+	TYPE_EXT_DDR2,
+	TYPE_EXT_DDR3,
+	TYPE_EXT_DDR4,
+	TYPE_EXT_LPDDR2,
+	TYPE_EXT_LPDDR3,
+	TYPE_EXT_PCDDR3,
+	TYPE_EXT_LPDDR4,
+	TYPE_EXT_LPDDR4X,
+	TYPE_EXT_LPDDR4P,
+	TYPE_EXT_LPDDR5,
+	TYPE_EXT_LPDDR5X,
+	TYPE_EXT_MAX
+};
+
+enum {
+	CM_MGR_LP4 = 0,
+	CM_MGR_MAX,
+};
+
+#endif	/* __MTK_CM_MGR_PLATFORM_H__ */

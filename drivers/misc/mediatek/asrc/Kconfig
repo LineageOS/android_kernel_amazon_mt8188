@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-2.0
+config AUDIO_ASRC_COMMON
+	tristate
+
+config AUDIO_ASRC_MT8188
+	tristate "Audio ASRC support for Mediatek MT8188 chip"
+	select AUDIO_ASRC_COMMON
+	help
+	  This adds Audio ASRC driver support for Mediatek MT8188 chip

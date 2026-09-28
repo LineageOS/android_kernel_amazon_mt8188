@@ -5503,8 +5503,15 @@ static void hub_port_connect_change(struct usb_hub *hub, int port1,
 	struct usb_device_descriptor *descr;
 	int status = -ENODEV;
 
-	dev_dbg(&port_dev->dev, "status %04x, change %04x, %s\n", portstatus,
+	dev_info(&port_dev->dev, "status %04x, change %04x, %s\n", portstatus,
 			portchange, portspeed(hub, portstatus));
+
+#if IS_ENABLED(CONFIG_EXTCON_POGO_PIN)
+	if (portstatus == USB_PORT_DEVICE_CONNECT)
+		usb_port_notify_add_device();
+	else if (portstatus == USB_PORT_DEVICE_DISCONNECT)
+		usb_port_notify_remove_device();
+#endif
 
 	if (hub->has_indicators) {
 		set_port_led(hub, port1, HUB_LED_AUTO);

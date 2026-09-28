@@ -8,6 +8,7 @@
  */
 
 #include <linux/usb/role.h>
+#include <linux/of_platform.h>
 
 #include "mtu3.h"
 #include "mtu3_dr.h"
@@ -84,6 +85,52 @@ static int ssusb_port0_switch(struct ssusb_mtk *ssusb,
 	return 0;
 }
 
+static void ssusb_ip_reset(struct ssusb_mtk *ssusb)
+{
+	/* reset whole ip (xhci & u3d) */
+	mtu3_setbits(ssusb->ippc_base, U3D_SSUSB_IP_PW_CTRL0, SSUSB_IP_SW_RST);
+	udelay(1);
+	mtu3_clrbits(ssusb->ippc_base, U3D_SSUSB_IP_PW_CTRL0, SSUSB_IP_SW_RST);
+}
+
+static void ssusb_dev_reinit(struct ssusb_mtk *ssusb)
+{
+	struct mtu3 *mtu = ssusb->u3d;
+
+	mtu3_device_enable(mtu);
+	mtu3_regs_init(mtu);
+}
+
+static int ssusb_clk_on_off(struct ssusb_mtk *ssusb, bool enable)
+{
+	int ret = 0;
+
+	if (enable) {
+		ret = ssusb_clks_enable(ssusb);
+		if (ret) {
+			dev_err(ssusb->dev, "failed to enable clock\n");
+			return ret;
+		}
+		ret = ssusb_phy_power_on(ssusb);
+		if (ret)
+			dev_err(ssusb->dev, "failed to power on phy\n");
+	} else {
+		ssusb_phy_power_off(ssusb);
+		ssusb_clks_disable(ssusb);
+	}
+
+	return 0;
+}
+
+static void clk_control_dwork(struct work_struct *work)
+{
+	struct delayed_work *dwork = to_delayed_work(work);
+	struct ssusb_mtk *ssusb =
+		container_of(dwork, struct ssusb_mtk, clk_ctl_dwork);
+
+	ssusb_clk_on_off(ssusb, false);
+}
+
 static void switch_port_to_host(struct ssusb_mtk *ssusb)
 {
 	u32 check_clk = 0;
@@ -117,6 +164,19 @@ static void switch_port_to_device(struct ssusb_mtk *ssusb)
 	}
 
 	ssusb_check_clocks(ssusb, check_clk);
+}
+
+static void ssusb_set_mutex(struct ssusb_mtk *ssusb, int enable)
+{
+	if (!ssusb->usb_quick_plug)
+		return;
+
+	dev_dbg(ssusb->dev, "%s, enable = %d!\n", __func__, enable);
+
+	if (enable)
+		mutex_lock(&ssusb->mailbox_lock);
+	else
+		mutex_unlock(&ssusb->mailbox_lock);
 }
 
 int ssusb_set_vbus(struct otg_switch_mtk *otg_sx, int is_on)
@@ -155,33 +215,106 @@ static void ssusb_set_mailbox(struct otg_switch_mtk *otg_sx,
 	struct ssusb_mtk *ssusb =
 		container_of(otg_sx, struct ssusb_mtk, otg_switch);
 	struct mtu3 *mtu = ssusb->u3d;
+	unsigned long flags;
+	int ret = 0;
+	struct platform_device *pdev = to_platform_device(ssusb->dev);
+	struct device_node *node = pdev->dev.of_node;
+
+	ssusb_set_mutex(ssusb, 1);
 
 	dev_dbg(ssusb->dev, "mailbox %s\n", mailbox_state_string(status));
 	mtu3_dbg_trace(ssusb->dev, "mailbox %s", mailbox_state_string(status));
 
 	switch (status) {
 	case MTU3_ID_GROUND:
-		switch_port_to_host(ssusb);
+		if (!ssusb->keep_ao) {
+			ssusb_clk_on_off(ssusb, true);
+			ssusb->host_on = true;
+			ssusb_ip_sw_reset(ssusb);
+			ssusb_set_force_mode(ssusb, MTU3_DR_FORCE_HOST);
+			ret = ssusb_host_init(ssusb, node);
+			if (ret) {
+				dev_info(ssusb->dev, "failed to initialize host\n");
+				ssusb->host_on = false;
+				goto err_exit;
+			}
+		} else {
+			ssusb_set_force_mode(ssusb, MTU3_DR_FORCE_HOST);
+			switch_port_to_host(ssusb);
+		}
+		if (ssusb->otg_wakeup)
+			pm_stay_awake(ssusb->dev);
 		ssusb_set_vbus(otg_sx, 1);
 		ssusb->is_host = true;
+		otg_sx->sw_state |= MTU3_SW_ID_GROUND;
 		break;
 	case MTU3_ID_FLOAT:
+		if (!ssusb->host_on) {
+			otg_sx->sw_state &= ~MTU3_SW_ID_GROUND;
+			ssusb->is_host = false;
+			goto mutex_exit;
+		}
+		if (ssusb->otg_wakeup)
+			pm_relax(ssusb->dev);
+		ssusb_clk_on_off(ssusb, true);
+		ssusb_set_force_mode(ssusb, MTU3_DR_FORCE_NONE);
 		ssusb->is_host = false;
 		ssusb_set_vbus(otg_sx, 0);
-		switch_port_to_device(ssusb);
+		otg_sx->sw_state &= ~MTU3_SW_ID_GROUND;
+		if (ssusb->host_on) {
+			ssusb_host_exit(ssusb);
+			if (ssusb->usb_quick_plug) {
+				ssusb_clk_on_off(ssusb, false);
+			} else {
+				schedule_delayed_work(&ssusb->clk_ctl_dwork, HZ/8);
+			}
+			pm_wakeup_event(ssusb->dev, 3000);
+			ssusb->host_on = false;
+		}
 		break;
 	case MTU3_VBUS_OFF:
+		if (ssusb->host_on)
+			goto mutex_exit;
+		spin_lock_irqsave(&mtu->lock, flags);
+		mtu3_nuke_all_ep(mtu);
 		mtu3_stop(mtu);
+		/* report disconnect */
+		if (mtu->g.speed != USB_SPEED_UNKNOWN)
+			mtu3_gadget_disconnect(mtu);
+		spin_unlock_irqrestore(&mtu->lock, flags);
 		pm_relax(ssusb->dev);
+		ssusb_set_force_vbus(ssusb, false);
+		otg_sx->sw_state &= ~MTU3_SW_VBUS_VALID;
+		if (!ssusb->keep_ao)
+			ssusb_clk_on_off(ssusb, false);
 		break;
 	case MTU3_VBUS_VALID:
+		if (ssusb->host_on)
+			goto mutex_exit;
+		if (!ssusb->keep_ao) {
+			ssusb_clk_on_off(ssusb, true);
+			ssusb_ip_reset(ssusb);
+			ssusb_dev_reinit(ssusb);
+		}
+		ssusb_set_force_vbus(ssusb, true);
+		ssusb_set_force_mode(ssusb, MTU3_DR_FORCE_DEVICE);
+		switch_port_to_device(ssusb);
 		/* avoid suspend when works as device */
 		pm_stay_awake(ssusb->dev);
 		mtu3_start(mtu);
+		otg_sx->sw_state |= MTU3_SW_VBUS_VALID;
 		break;
 	default:
 		dev_err(ssusb->dev, "invalid state\n");
 	}
+
+	ssusb_set_mutex(ssusb, 0);
+	return;
+
+err_exit:
+	dev_err(ssusb->dev, "set mailbox failed\n");
+mutex_exit:
+	ssusb_set_mutex(ssusb, 0);
 }
 
 static void ssusb_id_work(struct work_struct *work)
@@ -321,13 +454,54 @@ void ssusb_set_force_mode(struct ssusb_mtk *ssusb,
 static int ssusb_role_sw_set(struct usb_role_switch *sw, enum usb_role role)
 {
 	struct ssusb_mtk *ssusb = usb_role_switch_get_drvdata(sw);
-	bool to_host = false;
+	struct otg_switch_mtk *otg_sx = &ssusb->otg_switch;
+	u32 sw_state = otg_sx->sw_state;
+	bool vbus_event, id_event;
 
-	if (role == USB_ROLE_HOST)
-		to_host = true;
+	dev_info(ssusb->dev, "role_sw_set role %d\n", role);
 
-	if (to_host ^ ssusb->is_host)
-		ssusb_mode_switch(ssusb, to_host);
+	otg_sx->latest_role = role;
+
+	if (otg_sx->op_mode != MTU3_DR_OPERATION_DUAL) {
+		dev_info(ssusb->dev, "op_mode %d, skip set role\n", otg_sx->op_mode);
+		return 0;
+	}
+
+	vbus_event = (role == USB_ROLE_DEVICE);
+	id_event = (role == USB_ROLE_HOST);
+
+	/* device role to host role */
+	if (!!(sw_state & MTU3_SW_VBUS_VALID) && id_event) {
+		ssusb_set_mailbox(otg_sx, MTU3_VBUS_OFF);
+		ssusb_set_mailbox(otg_sx, MTU3_ID_GROUND);
+		return 0;
+	}
+
+	/* host role to device role */
+	if (!!(sw_state & MTU3_SW_ID_GROUND) && vbus_event) {
+		ssusb_set_mailbox(otg_sx, MTU3_ID_FLOAT);
+		ssusb_set_mailbox(otg_sx, MTU3_VBUS_VALID);
+		return 0;
+	}
+
+	/* device role to none, none to device role */
+	if (!!(sw_state & MTU3_SW_VBUS_VALID) ^ vbus_event) {
+		if (vbus_event)
+			ssusb_set_mailbox(otg_sx, MTU3_VBUS_VALID);
+		else
+			ssusb_set_mailbox(otg_sx, MTU3_VBUS_OFF);
+	}
+
+	/* host role to none, none to host role */
+	if (!!(sw_state & MTU3_SW_ID_GROUND) ^ id_event) {
+		if (id_event)
+			ssusb_set_mailbox(otg_sx, MTU3_ID_GROUND);
+		else {
+			/* wait for device remove done, e.g. usb audio */
+			mdelay(100);
+			ssusb_set_mailbox(otg_sx, MTU3_ID_FLOAT);
+		}
+	}
 
 	return 0;
 }
@@ -357,8 +531,116 @@ static int ssusb_role_sw_register(struct otg_switch_mtk *otg_sx)
 	role_sx_desc.driver_data = ssusb;
 	otg_sx->role_sw = usb_role_switch_register(ssusb->dev, &role_sx_desc);
 
+	/* default to role none */
+	if (!PTR_ERR_OR_ZERO(otg_sx->role_sw))
+		ssusb_role_sw_set(otg_sx->role_sw, USB_ROLE_NONE);
+
 	return PTR_ERR_OR_ZERO(otg_sx->role_sw);
 }
+
+static ssize_t mode_store(struct device *dev,
+				 struct device_attribute *attr,
+				 const char *buf, size_t count)
+{
+	struct ssusb_mtk *ssusb = dev_get_drvdata(dev);
+	struct otg_switch_mtk *otg_sx = &ssusb->otg_switch;
+	enum usb_role role = otg_sx->latest_role;
+	int mode;
+
+	if (kstrtoint(buf, 10, &mode))
+		return -EINVAL;
+
+	dev_info(dev, "store mode %d op_mode %d\n", mode, otg_sx->op_mode);
+
+	if (otg_sx->op_mode != mode) {
+		/* set switch role */
+		switch (mode) {
+		case MTU3_DR_OPERATION_OFF:
+			otg_sx->latest_role = USB_ROLE_NONE;
+			break;
+		case MTU3_DR_OPERATION_DUAL:
+			/* switch usb role to latest role */
+			break;
+		case MTU3_DR_OPERATION_HOST:
+			otg_sx->latest_role = USB_ROLE_HOST;
+			break;
+		case MTU3_DR_OPERATION_DEVICE:
+			otg_sx->latest_role = USB_ROLE_DEVICE;
+			break;
+		default:
+			return -EINVAL;
+		}
+		/* switch operation mode to normal temporarily */
+		otg_sx->op_mode = MTU3_DR_OPERATION_DUAL;
+		/* switch usb role */
+		ssusb_role_sw_set(otg_sx->role_sw, otg_sx->latest_role);
+		/* update operation mode */
+		otg_sx->op_mode = mode;
+		/* restore role */
+		otg_sx->latest_role = role;
+	}
+
+	return count;
+}
+
+static ssize_t mode_show(struct device *dev,
+				struct device_attribute *attr,
+				char *buf)
+{
+	struct ssusb_mtk *ssusb = dev_get_drvdata(dev);
+	struct otg_switch_mtk *otg_sx = &ssusb->otg_switch;
+
+	return sprintf(buf, "%d\n", otg_sx->op_mode);
+}
+static DEVICE_ATTR_RW(mode);
+
+static ssize_t max_speed_store(struct device *dev,
+				 struct device_attribute *attr,
+				 const char *buf, size_t count)
+{
+	struct ssusb_mtk *ssusb = dev_get_drvdata(dev);
+	struct mtu3 *mtu = ssusb->u3d;
+	int speed;
+
+	if (!strncmp(buf, "super-speed-plus", 16))
+		speed = USB_SPEED_SUPER_PLUS;
+	else if (!strncmp(buf, "super-speed", 11))
+		speed = USB_SPEED_SUPER;
+	else if (!strncmp(buf, "high-speed", 10))
+		speed = USB_SPEED_HIGH;
+	else if (!strncmp(buf, "full-speed", 10))
+		speed = USB_SPEED_FULL;
+	else
+		return -EFAULT;
+
+	dev_info(dev, "store speed %s\n", buf);
+
+	mtu->max_speed = speed;
+	mtu->g.max_speed = speed;
+
+	return count;
+}
+
+static ssize_t max_speed_show(struct device *dev,
+				struct device_attribute *attr,
+				char *buf)
+{
+	struct ssusb_mtk *ssusb = dev_get_drvdata(dev);
+	struct mtu3 *mtu = ssusb->u3d;
+
+	return sprintf(buf, "%s\n", usb_speed_string(mtu->max_speed));
+}
+static DEVICE_ATTR_RW(max_speed);
+
+static struct attribute *ssusb_dr_attrs[] = {
+	&dev_attr_mode.attr,
+	&dev_attr_max_speed.attr,
+	NULL
+};
+
+static const struct attribute_group ssusb_dr_group = {
+	.attrs = ssusb_dr_attrs,
+};
 
 int ssusb_otg_switch_init(struct ssusb_mtk *ssusb)
 {
@@ -367,6 +649,18 @@ int ssusb_otg_switch_init(struct ssusb_mtk *ssusb)
 
 	INIT_WORK(&otg_sx->id_work, ssusb_id_work);
 	INIT_WORK(&otg_sx->vbus_work, ssusb_vbus_work);
+	INIT_DELAYED_WORK(&ssusb->clk_ctl_dwork, clk_control_dwork);
+
+	/* default as host, update state */
+	otg_sx->sw_state = ssusb->is_host ?
+			MTU3_SW_ID_GROUND : MTU3_SW_VBUS_VALID;
+
+	/* initial operation mode */
+	otg_sx->op_mode = MTU3_DR_OPERATION_DUAL;
+
+	ret = sysfs_create_group(&ssusb->dev->kobj, &ssusb_dr_group);
+	if (ret)
+		dev_info(ssusb->dev, "error creating sysfs attributes\n");
 
 	if (otg_sx->manual_drd_enabled)
 		ssusb_dr_debugfs_init(ssusb);
@@ -385,4 +679,5 @@ void ssusb_otg_switch_exit(struct ssusb_mtk *ssusb)
 	cancel_work_sync(&otg_sx->id_work);
 	cancel_work_sync(&otg_sx->vbus_work);
 	usb_role_switch_unregister(otg_sx->role_sw);
+	sysfs_remove_group(&ssusb->dev->kobj, &ssusb_dr_group);
 }

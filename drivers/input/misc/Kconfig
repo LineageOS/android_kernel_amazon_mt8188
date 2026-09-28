@@ -73,6 +73,12 @@ config INPUT_AD714X_SPI
 	  To compile this driver as a module, choose M here: the
 	  module will be called ad714x-spi.
 
+config INPUT_HALL_BU520
+	tristate "BU520 hall sensor support"
+	default n
+	help
+	  Support for ROHM BU520 hall sensor.
+
 config INPUT_ARIZONA_HAPTICS
 	tristate "Arizona haptics support"
 	depends on MFD_ARIZONA && SND_SOC

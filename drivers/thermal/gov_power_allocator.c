@@ -606,7 +606,18 @@ static int power_allocator_throttle(struct thermal_zone_device *tz, int trip)
 {
 	int ret;
 	int switch_on_temp, control_temp;
-	struct power_allocator_params *params = tz->governor_data;
+	struct power_allocator_params *params;
+
+	if (WARN_ON(!tz))
+		return -ENODEV;
+
+	if (WARN_ON(!tz->governor_data)) {
+		dev_warn(&tz->device,
+			"%s: thermal_zone%d, NULL governor_data\n", __func__, tz->id);
+		return -EINVAL;
+	}
+
+	params = tz->governor_data;
 
 	/*
 	 * We get called for every trip point but we only need to do

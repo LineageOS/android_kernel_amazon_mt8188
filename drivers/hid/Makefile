@@ -3,6 +3,7 @@
 # Makefile for the HID driver
 #
 hid-y			:= hid-core.o hid-input.o hid-quirks.o
+
 hid-$(CONFIG_DEBUG_FS)		+= hid-debug.o
 
 obj-$(CONFIG_HID)		+= hid.o
@@ -21,6 +22,7 @@ hid-logitech-$(CONFIG_LOGIWHEELS_FF)	+= hid-lg4ff.o
 hid-wiimote-y		:= hid-wiimote-core.o hid-wiimote-modules.o
 hid-wiimote-$(CONFIG_DEBUG_FS)	+= hid-wiimote-debug.o
 
+obj-$(CONFIG_HID_SANIDINE)	+= hid-sanidine.o
 obj-$(CONFIG_HID_A4TECH)	+= hid-a4tech.o
 obj-$(CONFIG_HID_ACCUTOUCH)	+= hid-accutouch.o
 obj-$(CONFIG_HID_ALPS)		+= hid-alps.o
@@ -141,6 +143,11 @@ obj-$(CONFIG_USB_MOUSE)		+= usbhid/
 obj-$(CONFIG_USB_KBD)		+= usbhid/
 
 obj-$(CONFIG_I2C_HID)		+= i2c-hid/
+obj-$(CONFIG_I2C_HID_ILITEK)	+= ILITEK_HID_over_I2c/
+obj-$(CONFIG_HID_TOUCHSCREEN_FTS)	+= hid-focal/
+obj-$(CONFIG_I2C_HID_OF_NVT_TS)	+= i2c_hid_of_nvt_ts/
+obj-$(CONFIG_STYLUS_BATTERY_ALGO) += stylus/
+obj-$(CONFIG_HID_TOUCH_METRICS) += hid_touch_metrics/
 
 obj-$(CONFIG_INTEL_ISH_HID)	+= intel-ish-hid/
 obj-$(INTEL_ISH_FIRMWARE_DOWNLOADER)	+= intel-ish-hid/

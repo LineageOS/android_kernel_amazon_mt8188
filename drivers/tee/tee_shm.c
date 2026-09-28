@@ -194,8 +194,13 @@ struct tee_shm *tee_shm_register(struct tee_context *ctx, unsigned long addr,
 	}
 
 	if (flags & TEE_SHM_USER_MAPPED) {
+#if IS_ENABLED(CONFIG_MTEE_CMA_SECURE_MEMORY)
+		rc = pin_user_pages_fast(start, num_pages, FOLL_WRITE | FOLL_LONGTERM,
+					 shm->pages);
+#else
 		rc = pin_user_pages_fast(start, num_pages, FOLL_WRITE,
 					 shm->pages);
+#endif
 	} else {
 		struct kvec *kiov;
 		int i;

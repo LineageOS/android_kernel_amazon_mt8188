@@ -355,5 +355,9 @@ struct dma_buf *ion_dmabuf_alloc(struct ion_device *dev, size_t len,
 	if (IS_ERR(dmabuf))
 		ion_buffer_destroy(dev, buffer);
 
+#if IS_ENABLED(CONFIG_MTK_ION_DEBUG)
+	buffer->dmabuf = dmabuf;
+#endif
+
 	return dmabuf;
 }

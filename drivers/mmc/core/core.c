@@ -2035,6 +2035,9 @@ unsigned int mmc_calc_max_discard(struct mmc_card *card)
 	struct mmc_host *host = card->host;
 	unsigned int max_discard, max_trim;
 
+	if (!host->max_busy_timeout)
+		return UINT_MAX;
+
 	/*
 	 * Without erase_group_def set, MMC erase timeout depends on clock
 	 * frequence which can change.  In that case, the best choice is
@@ -2348,6 +2351,7 @@ void mmc_start_host(struct mmc_host *host)
 	mmc_gpiod_request_cd_irq(host);
 	_mmc_detect_change(host, 0, false);
 }
+EXPORT_SYMBOL(mmc_start_host);
 
 void __mmc_stop_host(struct mmc_host *host)
 {
@@ -2387,6 +2391,7 @@ void mmc_stop_host(struct mmc_host *host)
 	mmc_power_off(host);
 	mmc_release_host(host);
 }
+EXPORT_SYMBOL(mmc_stop_host);
 
 static int __init mmc_init(void)
 {

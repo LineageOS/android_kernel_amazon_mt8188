@@ -26,6 +26,25 @@
 #include "input-compat.h"
 #include "input-poller.h"
 
+#if IS_ENABLED(CONFIG_AMAZON_METRICS_LOG) || IS_ENABLED(CONFIG_AMAZON_MINERVA_METRICS_LOG)
+#include <linux/metricslog.h>
+#define METRICS_STR_LEN 1024
+#define BTN_TOUCH_VALUE_DOWN 1
+#define BTN_DIGI_VALUE_DOWN 1
+#define BTN_DIGI_VALUE_UP 0
+#endif
+
+#if IS_ENABLED(CONFIG_AMAZON_MINERVA_METRICS_LOG)
+#include <linux/time.h>
+#include <linux/rtc.h>
+#define INPUT_MINERVA_FMT "%s:%s:100:%s,%s,%s,%s,%s,%s,%s,key_power=%d;IN,key_volup=%d;IN,key_voldown=%d;IN,touch_tap=%d;IN,esd_recovery=0;IN:us-east-1"
+#define STYLUS_MINERVA_FMT "%s:%s:100:%s,%s,%s,%s,%s,%s,%s,UsageCounter=%d;IN,sessionStartTime=%s;SY,sessionEndTime=%s;SY,sessionDuration=%s;SY:us-east-1"
+#define STYLUS_IDLE_TIME (30*1000)
+#define SESSION_TIME_LEN 64
+#define STYLUS_SESSION_ACTIVE 1
+#define STYLUS_SESSION_INACTIVE 0
+#endif
+
 MODULE_AUTHOR("Vojtech Pavlik <vojtech@suse.cz>");
 MODULE_DESCRIPTION("Input core");
 MODULE_LICENSE("GPL");
@@ -36,6 +55,50 @@ static DEFINE_IDA(input_ida);
 
 static LIST_HEAD(input_dev_list);
 static LIST_HEAD(input_handler_list);
+
+#if IS_ENABLED(CONFIG_AMAZON_METRICS_LOG) || IS_ENABLED(CONFIG_AMAZON_MINERVA_METRICS_LOG)
+static atomic_t pwrkey_counter = ATOMIC_INIT(0);
+static atomic_t vol_up_counter = ATOMIC_INIT(0);
+static atomic_t vol_down_counter = ATOMIC_INIT(0);
+static atomic_t touch_tap_counter = ATOMIC_INIT(0);
+static atomic_t stylus_tap_counter = ATOMIC_INIT(0);
+struct delayed_work metrics_work;
+
+static int32_t stylus_session_status = STYLUS_SESSION_INACTIVE;
+static char sessionStartTime[SESSION_TIME_LEN];
+static char sessionEndTime[SESSION_TIME_LEN];
+static char sesssionDuartion[SESSION_TIME_LEN];
+static char minerva_buf[METRICS_STR_LEN];
+static struct rtc_time start_time, end_time;
+static struct timespec64 stylus_start_time, stylus_end_time, stylus_run_time;
+static struct delayed_work stylus_metrics_work;
+static struct mutex stylus_metrics_lock;
+
+static void metrics_stylus_func(struct work_struct *work)
+{
+	char session_StartTime[SESSION_TIME_LEN] = { 0 };
+	char session_EndTime[SESSION_TIME_LEN] = { 0 };
+	char sesssion_Duartion[SESSION_TIME_LEN] = { 0 };
+	const struct amazon_logger_ops *amazon_logger = amazon_logger_ops_get();
+
+	mutex_lock(&stylus_metrics_lock);
+	memcpy(session_StartTime, sessionStartTime, SESSION_TIME_LEN);
+	memcpy(session_EndTime, sessionEndTime, SESSION_TIME_LEN);
+	memcpy(sesssion_Duartion, sesssionDuartion, SESSION_TIME_LEN);
+	stylus_session_status = STYLUS_SESSION_INACTIVE;
+	mutex_unlock(&stylus_metrics_lock);
+
+	if (amazon_logger && amazon_logger->minerva_metrics_log) {
+		amazon_logger->minerva_metrics_log(minerva_buf, METRICS_STR_LEN, STYLUS_MINERVA_FMT,
+			METRICS_INPUT_GROUP_ID, METRICS_STYLUS_SCHEMA_ID, PREDEFINED_ESSENTIAL_KEY,
+			PREDEFINED_DEVICE_ID_KEY, PREDEFINED_CUSTOMER_ID_KEY, PREDEFINED_OS_KEY,
+			PREDEFINED_DEVICE_LANGUAGE_KEY, PREDEFINED_TZ_KEY, PREDEFINED_MODEL_KEY,
+			stylus_tap_counter, session_StartTime, session_EndTime, sesssion_Duartion);
+	}
+}
+
+static DECLARE_DELAYED_WORK(stylus_metrics_work, metrics_stylus_func);
+#endif
 
 /*
  * input_mutex protects access to both input_dev_list and input_handler_list.
@@ -380,8 +443,50 @@ static void input_handle_event(struct input_dev *dev,
 {
 	int disposition = input_get_disposition(dev, type, code, &value);
 
-	if (disposition != INPUT_IGNORE_EVENT && type != EV_SYN)
+	if (disposition != INPUT_IGNORE_EVENT && type != EV_SYN) {
 		add_input_randomness(type, code, value);
+#if IS_ENABLED(CONFIG_AMAZON_MINERVA_METRICS_LOG)
+		if (type == EV_KEY && (code == BTN_DIGI && value == BTN_DIGI_VALUE_DOWN)) {
+			atomic_set(&stylus_tap_counter, 1);
+			cancel_delayed_work(&stylus_metrics_work);
+
+			if (stylus_session_status == STYLUS_SESSION_INACTIVE) {
+				mutex_lock(&stylus_metrics_lock);
+				/* get session start time. */
+				ktime_get_real_ts64(&stylus_start_time);
+				rtc_time64_to_tm(stylus_start_time.tv_sec, &start_time);
+				snprintf(sessionStartTime, SESSION_TIME_LEN,
+					"%04d-%02d-%02d_%02d-%02d-%02d",
+					start_time.tm_year + 1900, start_time.tm_mon + 1,
+					start_time.tm_mday, start_time.tm_hour,
+					start_time.tm_min, start_time.tm_sec);
+				stylus_session_status = STYLUS_SESSION_ACTIVE;
+				mutex_unlock(&stylus_metrics_lock);
+			}
+		}
+
+		if (type == EV_KEY && (code == BTN_DIGI && value == BTN_DIGI_VALUE_UP)) {
+			mutex_lock(&stylus_metrics_lock);
+			/* get session end time. */
+			ktime_get_real_ts64(&stylus_end_time);
+			rtc_time64_to_tm(stylus_end_time.tv_sec, &end_time);
+			snprintf(sessionEndTime, SESSION_TIME_LEN,
+				"%04d-%02d-%02d_%02d-%02d-%02d",
+				end_time.tm_year + 1900, end_time.tm_mon + 1,
+				end_time.tm_mday, end_time.tm_hour,
+				end_time.tm_min, end_time.tm_sec);
+			/* get session duration */
+			stylus_run_time.tv_sec = stylus_end_time.tv_sec -
+				stylus_start_time.tv_sec;
+			snprintf(sesssionDuartion, SESSION_TIME_LEN,
+				"%d", stylus_run_time.tv_sec);
+			mutex_unlock(&stylus_metrics_lock);
+
+			schedule_delayed_work(&stylus_metrics_work,
+				msecs_to_jiffies(STYLUS_IDLE_TIME));
+		}
+#endif
+	}
 
 	if ((disposition & INPUT_PASS_TO_DEVICE) && dev->event)
 		dev->event(dev, type, code, value);
@@ -451,6 +556,19 @@ void input_event(struct input_dev *dev,
 		spin_lock_irqsave(&dev->event_lock, flags);
 		input_handle_event(dev, type, code, value);
 		spin_unlock_irqrestore(&dev->event_lock, flags);
+#if IS_ENABLED(CONFIG_AMAZON_METRICS_LOG) || IS_ENABLED(CONFIG_AMAZON_MINERVA_METRICS_LOG)
+		if (type == EV_KEY && (code == BTN_TOUCH && value == BTN_TOUCH_VALUE_DOWN))
+			atomic_inc(&touch_tap_counter);
+
+		if (type == EV_KEY && code == KEY_VOLUMEDOWN)
+			atomic_inc(&vol_down_counter);
+
+		if (type == EV_KEY && code == KEY_VOLUMEUP)
+			atomic_inc(&vol_up_counter);
+
+		if (type == EV_KEY && code == KEY_POWER)
+			atomic_inc(&pwrkey_counter);
+#endif
 	}
 }
 EXPORT_SYMBOL(input_event);
@@ -2583,6 +2701,60 @@ void input_free_minor(unsigned int minor)
 }
 EXPORT_SYMBOL(input_free_minor);
 
+#if IS_ENABLED(CONFIG_AMAZON_METRICS_LOG)
+static void metrics_count_work(struct work_struct *work)
+{
+	char buf[128] = {0};
+	struct delayed_work *dw = container_of(work, struct delayed_work, work);
+	const struct amazon_logger_ops *logger;
+
+	logger = amazon_logger_ops_get();
+	if(logger != NULL) {
+		snprintf(buf, sizeof(buf),
+			"input_event:def:touch_tap=%d;CT;1:NA",
+			atomic_xchg(&touch_tap_counter, 0));
+		logger->log_to_metrics(ANDROID_LOG_INFO, "InputEvent", buf);
+		memset(buf, 0, sizeof(buf));
+		snprintf(buf, sizeof(buf),
+			"input_event:def:key_voldown=%d;CT;1:NA",
+			atomic_xchg(&vol_down_counter, 0));
+		logger->log_to_metrics(ANDROID_LOG_INFO, "InputEvent", buf);
+		memset(buf, 0, sizeof(buf));
+		snprintf(buf, sizeof(buf),
+			"input_event:def:key_volup=%d;CT;1:NA",
+			atomic_xchg(&vol_up_counter, 0));
+		logger->log_to_metrics(ANDROID_LOG_INFO, "InputEvent", buf);
+		memset(buf, 0, sizeof(buf));
+		snprintf(buf, sizeof(buf),
+			"input_event:def:key_power=%d;CT;1:NA",
+			atomic_xchg(&pwrkey_counter, 0));
+		logger->log_to_metrics(ANDROID_LOG_INFO, "InputEvent", buf);
+	}
+	schedule_delayed_work(dw, 7200*HZ);
+}
+#endif
+
+#if IS_ENABLED(CONFIG_AMAZON_MINERVA_METRICS_LOG)
+static void metrics_count_work(struct work_struct *work)
+{
+	char buf[METRICS_STR_LEN] = {0};
+	struct delayed_work *dw = container_of(work, struct delayed_work, work);
+	const struct amazon_logger_ops *amazon_logger = amazon_logger_ops_get();
+
+	if (amazon_logger && amazon_logger->minerva_metrics_log) {
+		amazon_logger->minerva_metrics_log(buf, METRICS_STR_LEN, INPUT_MINERVA_FMT,
+			METRICS_INPUT_EVENT_GROUP_ID, METRICS_INPUT_SCHEMA_ID, PREDEFINED_ESSENTIAL_KEY,
+			PREDEFINED_DEVICE_ID_KEY, PREDEFINED_CUSTOMER_ID_KEY, PREDEFINED_OS_KEY,
+			PREDEFINED_DEVICE_LANGUAGE_KEY, PREDEFINED_TZ_KEY, PREDEFINED_MODEL_KEY,
+			atomic_xchg(&pwrkey_counter, 0), atomic_xchg(&vol_up_counter, 0),
+			atomic_xchg(&vol_down_counter, 0), atomic_xchg(&touch_tap_counter, 0));
+		memset(buf, 0, sizeof(buf));
+	}
+
+	schedule_delayed_work(dw, 86400*HZ);
+}
+#endif
+
 static int __init input_init(void)
 {
 	int err;
@@ -2604,6 +2776,12 @@ static int __init input_init(void)
 		goto fail2;
 	}
 
+#if IS_ENABLED(CONFIG_AMAZON_METRICS_LOG) || IS_ENABLED(CONFIG_AMAZON_MINERVA_METRICS_LOG)
+	mutex_init(&stylus_metrics_lock);
+	INIT_DELAYED_WORK(&metrics_work, metrics_count_work);
+	schedule_delayed_work(&metrics_work, 0);
+#endif
+
 	return 0;
 
  fail2:	input_proc_exit();
@@ -2617,6 +2795,12 @@ static void __exit input_exit(void)
 	unregister_chrdev_region(MKDEV(INPUT_MAJOR, 0),
 				 INPUT_MAX_CHAR_DEVICES);
 	class_unregister(&input_class);
+
+#if IS_ENABLED(CONFIG_AMAZON_METRICS_LOG) || IS_ENABLED(CONFIG_AMAZON_MINERVA_METRICS_LOG)
+	mutex_destroy(&stylus_metrics_lock);
+	cancel_delayed_work(&metrics_work);
+	cancel_delayed_work(&stylus_metrics_work);
+#endif
 }
 
 subsys_initcall(input_init);

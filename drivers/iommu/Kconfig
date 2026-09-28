@@ -373,7 +373,8 @@ config S390_AP_IOMMU
 	  is not implemented as it is not necessary for VFIO.
 
 config MTK_IOMMU
-	bool "MTK IOMMU Support"
+	tristate "MTK IOMMU Support"
+	depends on ARM || ARM64
 	depends on ARCH_MEDIATEK || COMPILE_TEST
 	select ARM_DMA_USE_IOMMU
 	select IOMMU_API
@@ -399,6 +400,15 @@ config MTK_IOMMU_V1
 	  Support for the M4U on certain Mediatek SoCs. M4U generation 1 HW is
 	  Multimedia Memory Managememt Unit. This option enables remapping of
 	  DMA memory accesses for the multimedia subsystem.
+
+	  if unsure, say N here.
+
+config MTK_IOMMU_MT8XXX
+	bool "MTK IOMMU MT8XXX Support"
+	depends on MTK_IOMMU
+	help
+	  Support for the M4U on certain Mediatek SoCs. It is based on the
+	  upstream version and support setting flow for MT8XXX product line.
 
 	  if unsure, say N here.
 

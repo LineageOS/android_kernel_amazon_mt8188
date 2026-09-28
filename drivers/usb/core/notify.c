@@ -19,6 +19,9 @@
 #include "usb.h"
 
 static BLOCKING_NOTIFIER_HEAD(usb_notifier_list);
+#if IS_ENABLED(CONFIG_EXTCON_POGO_PIN)
+static BLOCKING_NOTIFIER_HEAD(usb_port_notifier_list);
+#endif
 
 /**
  * usb_register_notify - register a notifier callback whenever a usb change happens
@@ -66,3 +69,28 @@ void usb_notify_remove_bus(struct usb_bus *ubus)
 {
 	blocking_notifier_call_chain(&usb_notifier_list, USB_BUS_REMOVE, ubus);
 }
+
+#if IS_ENABLED(CONFIG_EXTCON_POGO_PIN)
+void usb_port_register_notify(struct notifier_block *nb)
+{
+	blocking_notifier_chain_register(&usb_port_notifier_list, nb);
+}
+EXPORT_SYMBOL_GPL(usb_port_register_notify);
+
+void usb_port_unregister_notify(struct notifier_block *nb)
+{
+	blocking_notifier_chain_unregister(&usb_port_notifier_list, nb);
+}
+EXPORT_SYMBOL_GPL(usb_port_unregister_notify);
+
+void usb_port_notify_add_device(void)
+{
+	blocking_notifier_call_chain(&usb_port_notifier_list, USB_PORT_DEVICE_CONNECT, NULL);
+}
+
+void usb_port_notify_remove_device(void)
+{
+	blocking_notifier_call_chain(&usb_port_notifier_list,
+			USB_PORT_DEVICE_DISCONNECT, NULL);
+}
+#endif

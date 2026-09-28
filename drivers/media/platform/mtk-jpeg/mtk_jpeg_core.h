@@ -17,6 +17,9 @@
 #define MTK_JPEG_NAME		"mtk-jpeg"
 
 #define MTK_JPEG_COMP_MAX		3
+#define MTK_JPEG_MAX_CLOCKS		2
+
+#define MTK_JPEG_HW_TIMEOUT_MSEC 1000
 
 #define MTK_JPEG_FMT_FLAG_OUTPUT	BIT(0)
 #define MTK_JPEG_FMT_FLAG_CAPTURE	BIT(1)
@@ -27,9 +30,6 @@
 #define MTK_JPEG_MAX_HEIGHT	65535U
 
 #define MTK_JPEG_DEFAULT_SIZEIMAGE	(1 * 1024 * 1024)
-
-#define MTK_JPEG_HW_TIMEOUT_MSEC 1000
-
 #define MTK_JPEG_MAX_EXIF_SIZE	(64 * 1024)
 
 /**
@@ -46,32 +46,16 @@ enum mtk_jpeg_ctx_state {
 
 /**
  * mtk_jpeg_variant - mtk jpeg driver variant
- * @clks:			clock names
- * @num_clks:			numbers of clock
- * @format:			jpeg driver's internal color format
- * @num_format:			number of format
- * @qops:			the callback of jpeg vb2_ops
- * @irq_handler:		jpeg irq handler callback
- * @hw_reset:			jpeg hardware reset callback
- * @m2m_ops:			the callback of jpeg v4l2_m2m_ops
- * @dev_name:			jpeg device name
- * @ioctl_ops:			the callback of jpeg v4l2_ioctl_ops
- * @out_q_default_fourcc:	output queue default fourcc
- * @cap_q_default_fourcc:	capture queue default fourcc
+ * @is_encoder:		driver mode is jpeg encoder
+ * @clks:		clock names
+ * @num_clks:		numbers of clock
  */
 struct mtk_jpeg_variant {
+	bool is_encoder;
 	struct clk_bulk_data *clks;
 	int num_clks;
-	struct mtk_jpeg_fmt *formats;
+	struct mtk_jpeg_fmt *mtk_jpeg_formats;
 	int num_formats;
-	const struct vb2_ops *qops;
-	irqreturn_t (*irq_handler)(int irq, void *priv);
-	void (*hw_reset)(void __iomem *base);
-	const struct v4l2_m2m_ops *m2m_ops;
-	const char *dev_name;
-	const struct v4l2_ioctl_ops *ioctl_ops;
-	u32 out_q_default_fourcc;
-	u32 cap_q_default_fourcc;
 };
 
 /**
@@ -86,8 +70,9 @@ struct mtk_jpeg_variant {
  * @vdev:		video device node for jpeg mem2mem mode
  * @reg_base:		JPEG registers mapping
  * @larb:		SMI device
- * @job_timeout_work:	IRQ timeout structure
+ * @clocks:		JPEG IP clock(s)
  * @variant:		driver variant to be used
+ * @job_timeout_work: IRQ timeout structure
  */
 struct mtk_jpeg_dev {
 	struct mutex		lock;
@@ -97,11 +82,14 @@ struct mtk_jpeg_dev {
 	struct v4l2_device	v4l2_dev;
 	struct v4l2_m2m_dev	*m2m_dev;
 	void			*alloc_ctx;
-	struct video_device	*vdev;
+	struct video_device *vdev;
 	void __iomem		*reg_base;
-	struct device		*larb;
-	struct delayed_work job_timeout_work;
+	struct device *larb;
+	struct clk		*clk_jpeg;
 	const struct mtk_jpeg_variant *variant;
+	struct delayed_work job_timeout_work;
+	long long hw_start_time;
+	long long hw_end_time;
 };
 
 /**
@@ -129,12 +117,18 @@ struct mtk_jpeg_fmt {
 /**
  * mtk_jpeg_q_data - parameters of one queue
  * @fmt:	  driver-specific format of this queue
- * @pix_mp:	  multiplanar format
- * @enc_crop_rect:	jpeg encoder crop information
+ * @w:		  image width
+ * @h:		  image height
+ * @bytesperline: distance in bytes between the leftmost pixels in two adjacent
+ *                lines
+ * @sizeimage:	  image buffer size in bytes
  */
 struct mtk_jpeg_q_data {
 	struct mtk_jpeg_fmt	*fmt;
-	struct v4l2_pix_format_mplane pix_mp;
+	u32			w;
+	u32			h;
+	u32			bytesperline[VIDEO_MAX_PLANES];
+	u32			sizeimage[VIDEO_MAX_PLANES];
 	struct v4l2_rect enc_crop_rect;
 };
 
@@ -149,6 +143,10 @@ struct mtk_jpeg_q_data {
  * @enc_quality:	jpeg encoder quality
  * @restart_interval:	jpeg encoder restart interval
  * @ctrl_hdl:		controls handler
+ * @colorspace: enum v4l2_colorspace; supplemental to pixelformat
+ * @ycbcr_enc: enum v4l2_ycbcr_encoding, Y'CbCr encoding
+ * @quantization: enum v4l2_quantization, colorspace quantization
+ * @xfer_func: enum v4l2_xfer_func, colorspace transfer function
  */
 struct mtk_jpeg_ctx {
 	struct mtk_jpeg_dev		*jpeg;
@@ -159,7 +157,19 @@ struct mtk_jpeg_ctx {
 	bool enable_exif;
 	u8 enc_quality;
 	u8 restart_interval;
-	struct v4l2_ctrl_handler ctrl_hdl;
+	struct v4l2_ctrl_handler	ctrl_hdl;
+
+	enum v4l2_colorspace colorspace;
+	enum v4l2_ycbcr_encoding ycbcr_enc;
+	enum v4l2_quantization quantization;
+	enum v4l2_xfer_func xfer_func;
+	u32 dst_offset;
+	bool low_latency_mode;
+	u32 srl;
+	u32 srl_id;
+	spinlock_t fence_lock;
+	uint32_t fence_context;
+	uint32_t fence_seqno;
 };
 
 #endif /* _MTK_JPEG_CORE_H */

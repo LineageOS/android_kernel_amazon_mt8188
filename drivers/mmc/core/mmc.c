@@ -26,6 +26,12 @@
 #include "sd_ops.h"
 #include "pwrseq.h"
 
+#if IS_ENABLED(CONFIG_AMAZON_METRICS_LOG)
+#include <linux/metricslog.h>
+#define LMK_METRIC_TAG "kernel"
+#define METRICS_data_LEN 128
+#endif /* #if IS_ENABLED(CONFIG_AMAZON_METRICS_LOG) */
+
 #define DEFAULT_CMD6_TIMEOUT_MS	500
 #define MIN_CACHE_EN_TIMEOUT_MS 1600
 
@@ -773,6 +779,130 @@ static int mmc_compare_ext_csds(struct mmc_card *card, unsigned bus_width)
 	return err;
 }
 
+#if IS_ENABLED(CONFIG_MMC_REALTIME_LIFETIME)
+static int mmc_update_ext_csd(struct mmc_card *card)
+{
+	int ret = 0;
+	u8* ext_csd;
+
+	ret = mmc_get_ext_csd(card, &ext_csd);
+	if (ret) {
+		if ((ret != -EINVAL)
+		 && (ret != -ENOSYS)
+		 && (ret != -EFAULT)) {
+			pr_err("%s: update ext_csd fail:error=%d\n",
+				mmc_hostname(card->host), ret);
+			return ret;
+		}
+	}
+
+	card->ext_csd.pre_eol_info = ext_csd[EXT_CSD_PRE_EOL_INFO];
+	card->ext_csd.device_life_time_est_typ_a =
+		ext_csd[EXT_CSD_DEVICE_LIFE_TIME_EST_TYP_A];
+	card->ext_csd.device_life_time_est_typ_b =
+		ext_csd[EXT_CSD_DEVICE_LIFE_TIME_EST_TYP_B];
+
+	kfree(ext_csd);
+	return 0;
+}
+
+static ssize_t mmc_life_time_show(struct device *dev, struct device_attribute *attr,
+						char *buf)
+{
+	int ret = 0;
+	struct mmc_card *card = mmc_dev_to_card(dev);
+
+	mmc_get_card(card, NULL);
+	if (mmc_card_suspended(card)) {
+		mmc_put_card(card, NULL);
+		return sprintf(buf, "0x%02x 0x%02x\n",
+			card->ext_csd.device_life_time_est_typ_a,
+			card->ext_csd.device_life_time_est_typ_b);
+	}
+
+	ret = mmc_update_ext_csd(card);
+	if (ret) {
+		mmc_put_card(card, NULL);
+		return ret;
+	}
+
+	mmc_put_card(card, NULL);
+	return sprintf(buf, "0x%02x 0x%02x\n",
+			card->ext_csd.device_life_time_est_typ_a,
+			card->ext_csd.device_life_time_est_typ_b);
+}
+static DEVICE_ATTR(life_time, S_IRUGO, mmc_life_time_show, NULL);
+
+static ssize_t mmc_pre_eol_info_show(struct device *dev, struct device_attribute *attr,
+						char *buf)
+{
+	int ret = 0;
+	struct mmc_card *card = mmc_dev_to_card(dev);
+
+	mmc_get_card(card, NULL);
+	if (mmc_card_suspended(card)) {
+		mmc_put_card(card, NULL);
+		return sprintf(buf, "0x%02x\n", card->ext_csd.pre_eol_info);
+	}
+
+	ret = mmc_update_ext_csd(card);
+	if (ret) {
+		mmc_put_card(card, NULL);
+		return ret;
+	}
+
+	mmc_put_card(card, NULL);
+	return sprintf(buf, "0x%02x\n", card->ext_csd.pre_eol_info);
+}
+static DEVICE_ATTR(pre_eol_info, S_IRUGO, mmc_pre_eol_info_show, NULL);
+
+static ssize_t mmc_life_time_typ_a_show(struct device *dev, struct device_attribute *attr,
+						char *buf)
+{
+	int ret = 0;
+	struct mmc_card *card = mmc_dev_to_card(dev);
+
+	mmc_get_card(card, NULL);
+	if (mmc_card_suspended(card)) {
+		mmc_put_card(card, NULL);
+		return sprintf(buf, "0x%02x\n", card->ext_csd.device_life_time_est_typ_a);
+	}
+
+	ret = mmc_update_ext_csd(card);
+	if (ret) {
+		mmc_put_card(card, NULL);
+		return ret;
+	}
+
+	mmc_put_card(card, NULL);
+	return sprintf(buf, "0x%02x\n", card->ext_csd.device_life_time_est_typ_a);
+}
+static DEVICE_ATTR(dev_lifetime_est_typ_a, S_IRUGO, mmc_life_time_typ_a_show, NULL);
+
+static ssize_t mmc_life_time_typ_b_show(struct device *dev, struct device_attribute *attr,
+						char *buf)
+{
+	int ret = 0;
+	struct mmc_card *card = mmc_dev_to_card(dev);
+
+	mmc_get_card(card, NULL);
+	if (mmc_card_suspended(card)) {
+		mmc_put_card(card, NULL);
+		return sprintf(buf, "0x%02x\n", card->ext_csd.device_life_time_est_typ_b);
+	}
+
+	ret = mmc_update_ext_csd(card);
+	if (ret) {
+		mmc_put_card(card, NULL);
+		return ret;
+	}
+
+	mmc_put_card(card, NULL);
+	return sprintf(buf, "0x%02x\n", card->ext_csd.device_life_time_est_typ_b);
+}
+static DEVICE_ATTR(dev_lifetime_est_typ_b, S_IRUGO, mmc_life_time_typ_b_show, NULL);
+#endif
+
 MMC_DEV_ATTR(cid, "%08x%08x%08x%08x\n", card->raw_cid[0], card->raw_cid[1],
 	card->raw_cid[2], card->raw_cid[3]);
 MMC_DEV_ATTR(csd, "%08x%08x%08x%08x\n", card->raw_csd[0], card->raw_csd[1],
@@ -787,10 +917,12 @@ MMC_DEV_ATTR(name, "%s\n", card->cid.prod_name);
 MMC_DEV_ATTR(oemid, "0x%04x\n", card->cid.oemid);
 MMC_DEV_ATTR(prv, "0x%x\n", card->cid.prv);
 MMC_DEV_ATTR(rev, "0x%x\n", card->ext_csd.rev);
+#if !IS_ENABLED(CONFIG_MMC_REALTIME_LIFETIME)
 MMC_DEV_ATTR(pre_eol_info, "0x%02x\n", card->ext_csd.pre_eol_info);
 MMC_DEV_ATTR(life_time, "0x%02x 0x%02x\n",
 	card->ext_csd.device_life_time_est_typ_a,
 	card->ext_csd.device_life_time_est_typ_b);
+#endif
 MMC_DEV_ATTR(serial, "0x%08x\n", card->cid.serial);
 MMC_DEV_ATTR(enhanced_area_offset, "%llu\n",
 		card->ext_csd.enhanced_area_offset);
@@ -802,6 +934,12 @@ MMC_DEV_ATTR(rel_sectors, "%#x\n", card->ext_csd.rel_sectors);
 MMC_DEV_ATTR(ocr, "0x%08x\n", card->ocr);
 MMC_DEV_ATTR(rca, "0x%04x\n", card->rca);
 MMC_DEV_ATTR(cmdq_en, "%d\n", card->ext_csd.cmdq_en);
+#if !IS_ENABLED(CONFIG_MMC_REALTIME_LIFETIME)
+MMC_DEV_ATTR(dev_lifetime_est_typ_a, "0x%02x\n",
+		card->ext_csd.device_life_time_est_typ_a);
+MMC_DEV_ATTR(dev_lifetime_est_typ_b, "0x%02x\n",
+		card->ext_csd.device_life_time_est_typ_b);
+#endif
 
 static ssize_t mmc_fwrev_show(struct device *dev,
 			      struct device_attribute *attr,
@@ -861,6 +999,8 @@ static struct attribute *mmc_std_attrs[] = {
 	&dev_attr_rca.attr,
 	&dev_attr_dsr.attr,
 	&dev_attr_cmdq_en.attr,
+	&dev_attr_dev_lifetime_est_typ_a.attr,
+	&dev_attr_dev_lifetime_est_typ_b.attr,
 	NULL,
 };
 ATTRIBUTE_GROUPS(mmc_std);
@@ -1226,6 +1366,14 @@ int mmc_select_hs400(struct mmc_card *card)
 	mmc_set_timing(host, MMC_TIMING_MMC_HS400);
 	mmc_set_bus_speed(card);
 
+	if (host->ops->execute_hs400_tuning) {
+		mmc_retune_disable(host);
+		err = host->ops->execute_hs400_tuning(host, card);
+		mmc_retune_enable(host);
+		if (err)
+			goto out_err;
+	}
+
 	if (host->ops->hs400_complete)
 		host->ops->hs400_complete(host);
 
@@ -1576,6 +1724,50 @@ int mmc_hs200_tuning(struct mmc_card *card)
 }
 EXPORT_SYMBOL_GPL(mmc_hs200_tuning);
 
+#if IS_ENABLED(CONFIG_AMAZON_METRICS_LOG)
+static int emmc_metrics_read(struct mmc_host *host)
+{
+	char logcat_emmc_data[METRICS_data_LEN];
+	struct mmc_card *card = host->card;
+	const struct amazon_logger_ops *logger;
+
+	logger = amazon_logger_ops_get();
+	if(logger != NULL) {
+		snprintf(logcat_emmc_data, METRICS_data_LEN,
+						"emmc:def:life_a=%d;CT;1,life_b=%d;CT;1:NR",
+						card->ext_csd.device_life_time_est_typ_a,
+						card->ext_csd.device_life_time_est_typ_b);
+		logger->log_to_metrics(ANDROID_LOG_INFO, LMK_METRIC_TAG,
+							logcat_emmc_data);
+		logger->log_counter_to_vitals(ANDROID_LOG_INFO, "Kernel", "Kernel",
+						"EMMC", "life_a", (u32)card->ext_csd.device_life_time_est_typ_a,
+						"count", NULL, VITALS_NORMAL);
+		logger->log_counter_to_vitals(ANDROID_LOG_INFO, "Kernel", "Kernel",
+						"EMMC", "life_b", (u32)card->ext_csd.device_life_time_est_typ_b,
+						"count", NULL, VITALS_NORMAL);
+	}
+
+	return 0;
+}
+
+/*
+ * Internal work. Work to output metrics at some later point.
+ */
+void mmc_host_metrics_work(struct work_struct *work)
+{
+	struct mmc_host *host = container_of(work, struct mmc_host,
+						metrics_delay_work.work);
+	emmc_metrics_read(host);
+}
+
+static void metrics_delaywork_queue(struct mmc_host *host)
+{
+	/* delay 60 seconds to output metrics */
+	queue_delayed_work(system_wq, &host->metrics_delay_work,
+				msecs_to_jiffies(60000));
+}
+#endif /* #if IS_ENABLED(CONFIG_AMAZON_METRICS_LOG) */
+
 /*
  * Handle the detection and initialisation of a card.
  *
@@ -1806,7 +1998,15 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 		if (err)
 			goto free_card;
 
-	} else if (!mmc_card_hs400es(card)) {
+	} else if (mmc_card_hs400es(card)) {
+		if (host->ops->execute_hs400_tuning) {
+			mmc_retune_disable(host);
+			err = host->ops->execute_hs400_tuning(host, card);
+			mmc_retune_enable(host);
+			if (err)
+				goto free_card;
+		}
+	} else {
 		/* Select the desired bus width optionally */
 		err = mmc_select_bus_width(card);
 		if (err > 0 && mmc_card_hs(card)) {
@@ -1979,7 +2179,7 @@ static int mmc_sleep(struct mmc_host *host)
 	 * others) is invalid while the card sleeps.
 	 */
 	if (!cmd.busy_timeout || !(host->caps & MMC_CAP_WAIT_WHILE_BUSY))
-		mmc_delay(timeout_ms);
+		err = __mmc_poll_for_busy(card, timeout_ms, false, false, MMC_BUSY_SLEEP);
 
 out_release:
 	mmc_retune_release(host);
@@ -2293,6 +2493,10 @@ int mmc_attach_mmc(struct mmc_host *host)
 	err = mmc_init_card(host, rocr, NULL);
 	if (err)
 		goto err;
+
+#if IS_ENABLED(CONFIG_AMAZON_METRICS_LOG)
+	metrics_delaywork_queue(host);
+#endif /* #if IS_ENABLED(CONFIG_AMAZON_METRICS_LOG) */
 
 	mmc_release_host(host);
 	err = mmc_add_card(host->card);

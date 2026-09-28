@@ -27,6 +27,7 @@
 #include <linux/smp.h>
 #include <linux/sysfs.h>
 #include <linux/types.h>
+#include <linux/pm_qos.h>
 
 #include <asm/arm_dsu_pmu.h>
 #include <asm/local64.h>
@@ -121,6 +122,8 @@ struct dsu_pmu {
 	s8				num_counters;
 	int				irq;
 	DECLARE_BITMAP(cpmceid_bitmap, DSU_PMU_MAX_COMMON_EVENTS);
+	struct pm_qos_request		dsu_pmu_qos_request;
+	u32				cpu_latency;
 };
 
 static unsigned long dsu_pmu_cpuhp_state;
@@ -424,6 +427,9 @@ static void dsu_pmu_start(struct perf_event *event, int pmu_flags)
 	if (event->hw.idx != DSU_PMU_IDX_CYCLE_COUNTER)
 		dsu_pmu_set_event(dsu_pmu, event);
 	event->hw.state = 0;
+
+	cpu_latency_qos_update_request(&dsu_pmu->dsu_pmu_qos_request,
+			dsu_pmu->cpu_latency);
 	dsu_pmu_enable_counter(dsu_pmu, event->hw.idx);
 }
 
@@ -436,6 +442,8 @@ static void dsu_pmu_stop(struct perf_event *event, int pmu_flags)
 	dsu_pmu_disable_counter(dsu_pmu, event->hw.idx);
 	dsu_pmu_event_update(event);
 	event->hw.state |= PERF_HES_STOPPED | PERF_HES_UPTODATE;
+	cpu_latency_qos_update_request(&dsu_pmu->dsu_pmu_qos_request,
+			PM_QOS_DEFAULT_VALUE);
 }
 
 static int dsu_pmu_add(struct perf_event *event, int flags)
@@ -711,6 +719,8 @@ static int dsu_pmu_device_probe(struct platform_device *pdev)
 	struct fwnode_handle *fwnode = dev_fwnode(&pdev->dev);
 	char *name;
 	static atomic_t pmu_idx = ATOMIC_INIT(-1);
+	struct device *dev = &pdev->dev;
+	struct device_node *np = dev->of_node;
 
 	dsu_pmu = dsu_pmu_alloc(pdev);
 	if (IS_ERR(dsu_pmu))
@@ -729,6 +739,12 @@ static int dsu_pmu_device_probe(struct platform_device *pdev)
 	if (rc) {
 		dev_warn(&pdev->dev, "Failed to parse the CPUs\n");
 		return rc;
+	}
+
+	if (of_property_read_u32(np, "limit_latency", &dsu_pmu->cpu_latency) < 0) {
+		dev_info(dsu_pmu->pmu.dev, "request default latency: %u\n",
+				PM_QOS_DEFAULT_VALUE);
+		dsu_pmu->cpu_latency = PM_QOS_DEFAULT_VALUE;
 	}
 
 	irq = platform_get_irq(pdev, 0);
@@ -768,6 +784,9 @@ static int dsu_pmu_device_probe(struct platform_device *pdev)
 		.attr_groups	= dsu_pmu_attr_groups,
 		.capabilities	= PERF_PMU_CAP_NO_EXCLUDE,
 	};
+
+	cpu_latency_qos_add_request(&dsu_pmu->dsu_pmu_qos_request,
+			PM_QOS_DEFAULT_VALUE);
 
 	rc = perf_pmu_register(&dsu_pmu->pmu, name, -1);
 	if (rc) {

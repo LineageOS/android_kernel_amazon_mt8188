@@ -13,19 +13,31 @@
 #include <linux/of_device.h>
 #include <linux/phy/phy.h>
 #include <linux/platform_device.h>
+#include <linux/pm_qos.h>
 #include <linux/regulator/consumer.h>
 #include <linux/reset.h>
 #include <linux/soc/mediatek/mtk_sip_svc.h>
+#include <linux/tracepoint.h>
 
+#if IS_ENABLED(CONFIG_RPMB)
+#include <asm/unaligned.h>
+#include <linux/async.h>
+#include <linux/rpmb.h>
+#endif
+
+#include "mtk_blocktag.h"
 #include "ufshcd.h"
 #include "ufshcd-crypto.h"
 #include "ufshcd-pltfrm.h"
 #include "ufs_quirks.h"
 #include "unipro.h"
 #include "ufs-mediatek.h"
+#include "ufs-mediatek-dbg.h"
 
 #define CREATE_TRACE_POINTS
+#include <trace/events/ufs.h>
 #include "ufs-mediatek-trace.h"
+#undef CREATE_TRACE_POINTS
 
 #define ufs_mtk_smc(cmd, val, res) \
 	arm_smccc_smc(MTK_SIP_UFS_CONTROL, \
@@ -191,6 +203,10 @@ static int ufs_mtk_hce_enable_notify(struct ufs_hba *hba,
 			hba->capabilities &= ~MASK_AUTO_HIBERN8_SUPPORT;
 			hba->ahit = 0;
 		}
+
+		ufshcd_writel(hba,
+			(ufshcd_readl(hba, REG_UFS_XOUFS_CTRL) | 0x80),
+			REG_UFS_XOUFS_CTRL);
 	}
 
 	return 0;
@@ -296,6 +312,64 @@ static void ufs_mtk_setup_ref_clk_wait_us(struct ufs_hba *hba,
 	host->ref_clk_ungating_wait_us = ungating_us;
 }
 
+static void ufs_mtk_dbg_sel(struct ufs_hba *hba)
+{
+	static u32 hw_ver;
+
+	if (!hw_ver)
+		hw_ver = ufshcd_readl(hba, REG_UFS_MTK_HW_VER);
+
+	if (((hw_ver >> 16) & 0xFF) >= 0x36) {
+		ufshcd_writel(hba, 0x820820, REG_UFS_DEBUG_SEL);
+		ufshcd_writel(hba, 0x0, REG_UFS_DEBUG_SEL_B0);
+		ufshcd_writel(hba, 0x55555555, REG_UFS_DEBUG_SEL_B1);
+		ufshcd_writel(hba, 0xaaaaaaaa, REG_UFS_DEBUG_SEL_B2);
+		ufshcd_writel(hba, 0xffffffff, REG_UFS_DEBUG_SEL_B3);
+	} else {
+		ufshcd_writel(hba, 0x20, REG_UFS_DEBUG_SEL);
+	}
+}
+
+static void ufs_mtk_wait_idle_state(struct ufs_hba *hba,
+			    unsigned long retry_ms)
+{
+	u64 timeout, time_checked;
+	u32 val, sm;
+	bool wait_idle;
+
+	timeout = sched_clock() + retry_ms * 1000000UL;
+
+
+	/* wait a specific time after check base */
+	udelay(10);
+	wait_idle = false;
+
+	do {
+		time_checked = sched_clock();
+		ufs_mtk_dbg_sel(hba);
+		val = ufshcd_readl(hba, REG_UFS_PROBE);
+
+		sm = val & 0x1f;
+
+		/*
+		 * if state is in H8 enter and H8 enter confirm
+		 * wait until return to idle state.
+		 */
+		if ((sm >= VS_HIB_ENTER) && (sm <= VS_HIB_EXIT)) {
+			wait_idle = true;
+			udelay(50);
+			continue;
+		} else if (!wait_idle)
+			break;
+
+		if (wait_idle && (sm == VS_HCE_BASE))
+			break;
+	} while (time_checked < timeout);
+
+	if (wait_idle && sm != VS_HCE_BASE)
+		dev_info(hba->dev, "wait idle tmo: 0x%x\n", val);
+}
+
 static int ufs_mtk_wait_link_state(struct ufs_hba *hba, u32 state,
 				   unsigned long max_wait_ms)
 {
@@ -305,7 +379,7 @@ static int ufs_mtk_wait_link_state(struct ufs_hba *hba, u32 state,
 	timeout = ktime_add_ms(ktime_get(), max_wait_ms);
 	do {
 		time_checked = ktime_get();
-		ufshcd_writel(hba, 0x20, REG_UFS_DEBUG_SEL);
+		ufs_mtk_dbg_sel(hba);
 		val = ufshcd_readl(hba, REG_UFS_PROBE);
 		val = val >> 28;
 
@@ -320,6 +394,21 @@ static int ufs_mtk_wait_link_state(struct ufs_hba *hba, u32 state,
 		return 0;
 
 	return -ETIMEDOUT;
+}
+
+static void ufs_mtk_pm_qos(struct ufs_hba *hba, bool qos_en)
+{
+	struct ufs_mtk_host *host = ufshcd_get_variant(hba);
+
+	if (host && host->pm_qos_init) {
+		if (qos_en)
+			cpu_latency_qos_update_request(
+				&host->pm_qos_req, 0);
+		else
+			cpu_latency_qos_update_request(
+				&host->pm_qos_req,
+				PM_QOS_DEFAULT_VALUE);
+	}
 }
 
 static int ufs_mtk_mphy_power_on(struct ufs_hba *hba, bool on)
@@ -511,6 +600,8 @@ static void ufs_mtk_init_host_caps(struct ufs_hba *hba)
 {
 	struct ufs_mtk_host *host = ufshcd_get_variant(hba);
 	struct device_node *np = hba->dev->of_node;
+	struct device_node *boot_node = NULL;
+	struct tag_bootmode *tag = NULL;
 
 	if (of_property_read_bool(np, "mediatek,ufs-boost-crypt"))
 		ufs_mtk_init_boost_crypt(hba);
@@ -521,10 +612,26 @@ static void ufs_mtk_init_host_caps(struct ufs_hba *hba)
 	if (of_property_read_bool(np, "mediatek,ufs-disable-ah8"))
 		host->caps |= UFS_MTK_CAP_DISABLE_AH8;
 
+	if (of_property_read_bool(np, "mediatek,ufs-qos"))
+		host->qos_enabled = host->qos_allowed = true;
+
 	if (of_property_read_bool(np, "mediatek,ufs-broken-vcc"))
 		host->caps |= UFS_MTK_CAP_BROKEN_VCC;
 
 	dev_info(hba->dev, "caps: 0x%x", host->caps);
+
+	boot_node = of_parse_phandle(np, "bootmode", 0);
+
+	if (!boot_node)
+		dev_info(hba->dev, "failed to get bootmode phandle\n");
+	else {
+		tag = (struct tag_bootmode *)of_get_property(boot_node,
+							"atag,boot", NULL);
+		if (!tag)
+			dev_info(hba->dev, "failed to get atag,boot\n");
+		else if (tag->boottype == BOOTDEV_UFS)
+			host->boot_device = true;
+	}
 }
 
 /**
@@ -569,17 +676,231 @@ static int ufs_mtk_setup_clocks(struct ufs_hba *hba, bool on,
 		}
 
 		if (clk_pwr_off) {
+			ufs_mtk_pm_qos(hba, on);
 			ufs_mtk_boost_crypt(hba, on);
 			ufs_mtk_setup_ref_clk(hba, on);
 			phy_power_off(host->mphy);
+			if (host->qos_enabled)
+				ufs_mtk_biolog_clk_gating(on);
 		}
 	} else if (on && status == POST_CHANGE) {
 		phy_power_on(host->mphy);
 		ufs_mtk_setup_ref_clk(hba, on);
 		ufs_mtk_boost_crypt(hba, on);
+		ufs_mtk_pm_qos(hba, on);
+		if (host->qos_enabled)
+			ufs_mtk_biolog_clk_gating(on);
 	}
 
 	return ret;
+}
+
+static bool ufs_mtk_is_data_cmd(struct scsi_cmnd *cmd)
+{
+	char cmd_op = cmd->cmnd[0];
+
+	if (cmd_op == WRITE_10 || cmd_op == READ_10 ||
+	    cmd_op == WRITE_16 || cmd_op == READ_16 ||
+	    cmd_op == WRITE_6 || cmd_op == READ_6)
+		return true;
+
+	return false;
+}
+
+struct tracepoints_table {
+	const char *name;
+	void *func;
+	struct tracepoint *tp;
+	bool init;
+};
+
+static void ufs_mtk_trace_vh_prepare_command(void *data, struct ufs_hba *hba, struct request *rq,
+			   struct ufshcd_lrb *lrbp, int *err)
+{
+#if defined(CONFIG_UFSFEATURE)
+	ufsf_change_lun(ufs_mtk_get_ufsf(hba), lrbp);
+	*err = ufsf_prep_fn(ufs_mtk_get_ufsf(hba), lrbp);
+#endif
+}
+
+static void ufs_mtk_trace_vh_compl_command(void *data, struct ufs_hba *hba, struct ufshcd_lrb *lrbp)
+{
+	struct scsi_cmnd *cmd = lrbp->cmd;
+	int tag = lrbp->task_tag;
+	unsigned long req_mask;
+	unsigned long outstanding_reqs;
+	unsigned long outstanding_tasks;
+	unsigned long flags;
+
+#if defined(CONFIG_UFSFEATURE)
+	struct utp_upiu_header *header = &lrbp->ucd_rsp_ptr->header;
+	int result = 0;
+	int scsi_status;
+	int ocs;
+	struct ufsf_feature *ufsf = ufs_mtk_get_ufsf(hba);
+#endif
+
+	if (!cmd)
+		return;
+
+	spin_lock_irqsave(hba->host->host_lock, flags);
+	outstanding_reqs = hba->outstanding_reqs;
+	outstanding_tasks = hba->outstanding_tasks;
+	spin_unlock_irqrestore(hba->host->host_lock, flags);
+
+	if (ufs_mtk_is_data_cmd(cmd)) {
+		req_mask = outstanding_reqs & ~(1 << tag);
+		ufs_mtk_biolog_transfer_req_compl(tag, req_mask);
+		ufs_mtk_biolog_check(req_mask);
+	}
+
+#if defined(CONFIG_UFSFEATURE)
+#if defined(CONFIG_UFSSHPB) && defined(CONFIG_HPB_DEBUG)
+	trace_printk("%llu + %u cmd 0x%X comp tag[%d] out %lX\n",
+		     (unsigned long long) blk_rq_pos(cmd->request),
+		     (unsigned int) blk_rq_sectors(cmd->request),
+		     cmd->cmnd[0], lrbp->task_tag, hba->outstanding_reqs);
+#endif
+	ocs = le32_to_cpu(header->dword_2) & MASK_OCS;
+
+	if (ocs == OCS_SUCCESS) {
+		result = be32_to_cpu(header->dword_0) >> 24;
+		if (result == UPIU_TRANSACTION_RESPONSE) {
+			scsi_status = be32_to_cpu(header->dword_1) &
+				MASK_SCSI_STATUS;
+			if (scsi_status == SAM_STAT_GOOD) {
+				ufsf_hpb_noti_rb(ufsf, lrbp);
+				if (ufsf_upiu_check_for_ccd(lrbp)) {
+					ufsf_copy_sense_data(lrbp);
+					/*
+					 * this applies to "GOOD" case
+					 * in scsi_decide_disposition()
+					 * and will pass normally.
+					 * if result is 0x00, sense will not
+					 * be able to copy in sg_scsi_ioctl()
+					 * Finally, ioctl tool in userspace will
+					 * receive the error as 1.
+					 */
+					result |= GOOD_CCD;
+				}
+			}
+		}
+	}
+#if defined(CONFIG_UFSHID)
+	/* Check if it is the last request to be completed */
+	if (!outstanding_tasks && (outstanding_reqs == (1 << lrbp->task_tag)))
+		schedule_work(&ufsf->on_idle_work);
+#endif
+#endif
+}
+
+static void ufs_mtk_trace_vh_send_tm_command(void *data, struct ufs_hba *hba,
+			int tag, const char *str)
+{
+#if defined(CONFIG_UFSFEATURE)
+	struct ufsf_feature *ufsf = ufs_mtk_get_ufsf(hba);
+
+	if (strcmp(str, "tm_complete") == 0)
+		ufsf_reset_lu(ufsf);
+
+#endif
+}
+
+static void ufs_mtk_trace_vh_update_sdev(void *data, struct scsi_device *sdev)
+{
+#if defined(CONFIG_UFSFEATURE)
+	struct ufs_hba *hba = shost_priv(sdev->host);
+	struct ufsf_feature *ufsf = ufs_mtk_get_ufsf(hba);
+
+	if (hba->dev_info.wmanufacturerid == UFS_VENDOR_SAMSUNG)
+		ufsf_slave_configure(ufsf, sdev);
+#endif
+}
+
+static void ufs_mtk_trace_vh_send_command(void *data, struct ufs_hba *hba,
+				struct ufshcd_lrb *lrbp)
+{
+#if defined(CONFIG_UFSFEATURE)
+	struct ufsf_feature *ufsf = ufs_mtk_get_ufsf(hba);
+
+	ufsf_hid_acc_io_stat(ufsf, lrbp);
+#endif
+}
+
+static struct tracepoints_table interests[] = {
+	{
+		.name = "android_vh_ufs_prepare_command",
+		.func = ufs_mtk_trace_vh_prepare_command
+	},
+	{
+		.name = "android_vh_ufs_compl_command",
+		.func = ufs_mtk_trace_vh_compl_command
+	},
+	{
+		.name = "android_vh_ufs_send_tm_command",
+		.func = ufs_mtk_trace_vh_send_tm_command
+	},
+	{
+		.name = "android_vh_ufs_update_sdev",
+		.func = ufs_mtk_trace_vh_update_sdev
+	},
+	{
+		.name = "android_vh_ufs_send_command",
+		.func = ufs_mtk_trace_vh_send_command
+	},
+};
+
+#define FOR_EACH_INTEREST(i) \
+	for (i = 0; i < sizeof(interests) / sizeof(struct tracepoints_table); \
+	i++)
+
+static void ufs_mtk_lookup_tracepoints(struct tracepoint *tp,
+				       void *ignore)
+{
+	int i;
+
+	FOR_EACH_INTEREST(i) {
+		if (strcmp(interests[i].name, tp->name) == 0)
+			interests[i].tp = tp;
+	}
+}
+
+static void ufs_mtk_uninstall_tracepoints(void)
+{
+	int i;
+
+	FOR_EACH_INTEREST(i) {
+		if (interests[i].init) {
+			tracepoint_probe_unregister(interests[i].tp,
+						    interests[i].func,
+						    NULL);
+		}
+	}
+}
+
+static int ufs_mtk_install_tracepoints(void)
+{
+	int i;
+
+	/* Install the tracepoints */
+	for_each_kernel_tracepoint(ufs_mtk_lookup_tracepoints, NULL);
+
+	FOR_EACH_INTEREST(i) {
+		if (interests[i].tp == NULL) {
+			pr_info("Error: %s not found\n",
+				interests[i].name);
+			/* Unload previously loaded */
+			ufs_mtk_uninstall_tracepoints();
+			return -EINVAL;
+		}
+
+		tracepoint_probe_register(interests[i].tp,
+					  interests[i].func,
+					  NULL);
+		interests[i].init = true;
+	}
+
+	return 0;
 }
 
 static void ufs_mtk_get_controller_version(struct ufs_hba *hba)
@@ -610,6 +931,513 @@ static void ufs_mtk_get_controller_version(struct ufs_hba *hba)
 static u32 ufs_mtk_get_ufs_hci_version(struct ufs_hba *hba)
 {
 	return hba->ufs_version;
+}
+
+
+#if IS_ENABLED(CONFIG_RPMB)
+
+#define SEC_PROTOCOL_UFS  0xEC
+#define SEC_SPECIFIC_UFS_RPMB 0x0001
+
+#define SEC_PROTOCOL_CMD_SIZE 12
+#define SEC_PROTOCOL_RETRIES 3
+#define SEC_PROTOCOL_RETRIES_ON_RESET 10
+#define SEC_PROTOCOL_TIMEOUT msecs_to_jiffies(30000)
+
+int ufs_mtk_rpmb_security_out(struct scsi_device *sdev,
+			 struct rpmb_frame *frames, u32 cnt)
+{
+	struct scsi_sense_hdr sshdr = {0};
+	u32 trans_len = cnt * sizeof(struct rpmb_frame);
+	int reset_retries = SEC_PROTOCOL_RETRIES_ON_RESET;
+	int ret;
+	u8 cmd[SEC_PROTOCOL_CMD_SIZE];
+
+	memset(cmd, 0, SEC_PROTOCOL_CMD_SIZE);
+	cmd[0] = SECURITY_PROTOCOL_OUT;
+	cmd[1] = SEC_PROTOCOL_UFS;
+	put_unaligned_be16(SEC_SPECIFIC_UFS_RPMB, cmd + 2);
+	cmd[4] = 0;                              /* inc_512 bit 7 set to 0 */
+	put_unaligned_be32(trans_len, cmd + 6);  /* transfer length */
+
+	/* Ensure device is resumed before RPMB operation */
+	scsi_autopm_get_device(sdev);
+
+retry:
+	ret = scsi_execute_req(sdev, cmd, DMA_TO_DEVICE,
+				     frames, trans_len, &sshdr,
+				     SEC_PROTOCOL_TIMEOUT, SEC_PROTOCOL_RETRIES,
+				     NULL);
+
+	if (ret && scsi_sense_valid(&sshdr) &&
+	    sshdr.sense_key == UNIT_ATTENTION)
+		/*
+		 * Device reset might occur several times,
+		 * give it one more chance
+		 */
+		if (--reset_retries > 0)
+			goto retry;
+
+	if (ret)
+		dev_err(&sdev->sdev_gendev, "%s: failed with err %0x\n",
+			__func__, ret);
+
+	if (driver_byte(ret) & DRIVER_SENSE)
+		scsi_print_sense_hdr(sdev, "rpmb: security out", &sshdr);
+
+	/* Allow device to be runtime suspended */
+	scsi_autopm_put_device(sdev);
+
+	return ret;
+}
+
+int ufs_mtk_rpmb_security_in(struct scsi_device *sdev,
+			struct rpmb_frame *frames, u32 cnt)
+{
+	struct scsi_sense_hdr sshdr = {0};
+	u32 alloc_len = cnt * sizeof(struct rpmb_frame);
+	int reset_retries = SEC_PROTOCOL_RETRIES_ON_RESET;
+	int ret;
+	u8 cmd[SEC_PROTOCOL_CMD_SIZE];
+
+	memset(cmd, 0, SEC_PROTOCOL_CMD_SIZE);
+	cmd[0] = SECURITY_PROTOCOL_IN;
+	cmd[1] = SEC_PROTOCOL_UFS;
+	put_unaligned_be16(SEC_SPECIFIC_UFS_RPMB, cmd + 2);
+	cmd[4] = 0;                             /* inc_512 bit 7 set to 0 */
+	put_unaligned_be32(alloc_len, cmd + 6); /* allocation length */
+
+	/* Ensure device is resumed before RPMB operation */
+	scsi_autopm_get_device(sdev);
+
+retry:
+	ret = scsi_execute_req(sdev, cmd, DMA_FROM_DEVICE,
+				     frames, alloc_len, &sshdr,
+				     SEC_PROTOCOL_TIMEOUT, SEC_PROTOCOL_RETRIES,
+				     NULL);
+
+	if (ret && scsi_sense_valid(&sshdr) &&
+	    sshdr.sense_key == UNIT_ATTENTION)
+		/*
+		 * Device reset might occur several times,
+		 * give it one more chance
+		 */
+		if (--reset_retries > 0)
+			goto retry;
+
+	/* Allow device to be runtime suspended */
+	scsi_autopm_put_device(sdev);
+
+	if (ret)
+		dev_err(&sdev->sdev_gendev, "%s: failed with err %0x\n",
+			__func__, ret);
+
+	if (driver_byte(ret) & DRIVER_SENSE)
+		scsi_print_sense_hdr(sdev, "rpmb: security in", &sshdr);
+
+	return ret;
+}
+
+static int ufs_mtk_rpmb_cmd_seq(struct device *dev,
+			       struct rpmb_cmd *cmds, u32 ncmds)
+{
+	unsigned long flags;
+	struct ufs_hba *hba = dev_get_drvdata(dev);
+	struct ufs_mtk_host *host;
+	struct scsi_device *sdev;
+	struct rpmb_cmd *cmd;
+	int i;
+	int ret;
+
+	host = ufshcd_get_variant(hba);
+
+	spin_lock_irqsave(hba->host->host_lock, flags);
+	sdev = hba->sdev_rpmb;
+	if (sdev) {
+		ret = scsi_device_get(sdev);
+		if (!ret && !scsi_device_online(sdev)) {
+			ret = -ENODEV;
+			scsi_device_put(sdev);
+		}
+	} else {
+		ret = -ENODEV;
+	}
+	spin_unlock_irqrestore(hba->host->host_lock, flags);
+	if (ret)
+		return ret;
+
+	/*
+	 * Send all command one by one.
+	 * Use rpmb lock to prevent other rpmb read/write threads cut in line.
+	 * Use mutex not spin lock because in/out function might sleep.
+	 */
+	mutex_lock(&host->rpmb_lock);
+	for (ret = 0, i = 0; i < ncmds && !ret; i++) {
+		cmd = &cmds[i];
+		if (cmd->flags & RPMB_F_WRITE)
+			ret = ufs_mtk_rpmb_security_out(sdev, cmd->frames,
+						       cmd->nframes);
+		else
+			ret = ufs_mtk_rpmb_security_in(sdev, cmd->frames,
+						      cmd->nframes);
+	}
+	mutex_unlock(&host->rpmb_lock);
+
+	scsi_device_put(sdev);
+	return ret;
+}
+
+static struct rpmb_ops ufs_mtk_rpmb_dev_ops = {
+	.cmd_seq = ufs_mtk_rpmb_cmd_seq,
+	.type = RPMB_TYPE_UFS,
+};
+static struct rpmb_dev *rawdev_ufs_rpmb;
+
+/**
+ * ufs_mtk_rpmb_ddd - add mtk rpmb cdev
+ * @data: host controller instance (hba)
+ *
+ * Read max ufs device read/write rpmb size support and
+ * set to reliable_wr_cnt for rpmb cdev read/write reference.
+ *
+ * Register raw cdve device in rawdev_ufs_rpmb
+ */
+static void ufs_mtk_rpmb_add(void *data, async_cookie_t cookie)
+{
+	int err;
+	u8 *desc_buf;
+	struct rpmb_dev *rdev;
+	u8 rw_size;
+	int retry = 10;
+	struct ufs_mtk_host *host;
+	struct ufs_hba *hba = (struct ufs_hba *)data;
+
+	host = ufshcd_get_variant(hba);
+
+	/* wait ufshcd_scsi_add_wlus add sdev_rpmb  */
+	while (hba->sdev_rpmb == NULL) {
+		if (retry) {
+			retry--;
+			msleep(1000);
+		} else {
+			dev_err(hba->dev,
+				"scsi rpmb device cannot found\n");
+			goto out;
+		}
+	}
+
+	desc_buf = kmalloc(QUERY_DESC_MAX_SIZE, GFP_KERNEL);
+	if (!desc_buf)
+		goto out;
+
+	err = ufshcd_read_desc_param(hba, QUERY_DESC_IDN_GEOMETRY, 0, 0,
+				     desc_buf, QUERY_DESC_MAX_SIZE);
+	if (err) {
+		dev_warn(hba->dev, "%s: cannot get rpmb rw limit %d\n",
+			 dev_name(hba->dev), err);
+		/* fallback to singel frame write */
+		rw_size = 1;
+	} else {
+		rw_size = desc_buf[GEOMETRY_DESC_PARAM_RPMB_RW_SIZE];
+	}
+
+	kfree(desc_buf);
+	dev_info(hba->dev, "rpmb rw_size: %d\n", rw_size);
+
+	ufs_mtk_rpmb_dev_ops.reliable_wr_cnt = rw_size;
+
+	if (unlikely(scsi_device_get(hba->sdev_rpmb)))
+		goto out;
+
+	rdev = rpmb_dev_register(hba->dev, &ufs_mtk_rpmb_dev_ops);
+	if (IS_ERR(rdev)) {
+		dev_warn(hba->dev, "%s: cannot register to rpmb %ld\n",
+			 dev_name(hba->dev), PTR_ERR(rdev));
+		goto out_put_dev;
+	}
+
+	/*
+	 * Preserve rpmb_dev to globals for connection of legacy
+	 * rpmb ioctl solution.
+	 */
+	rawdev_ufs_rpmb = rdev;
+
+	/*
+	 * Initialize rpmb mutex.
+	 */
+	mutex_init(&host->rpmb_lock);
+
+out_put_dev:
+	scsi_device_put(hba->sdev_rpmb);
+
+out:
+	return;
+}
+
+struct rpmb_dev *ufs_mtk_rpmb_get_raw_dev(void)
+{
+	return rawdev_ufs_rpmb;
+}
+EXPORT_SYMBOL_GPL(ufs_mtk_rpmb_get_raw_dev);
+#endif
+
+/**
+ * ufs_mtk_query_ioctl - perform user read queries
+ * @hba: per-adapter instance
+ * @lun: used for lun specific queries
+ * @buffer: user space buffer for reading and submitting query data and params
+ * @return: 0 for success negative error code otherwise
+ *
+ * Expected/Submitted buffer structure is struct ufs_ioctl_query_data.
+ * It will read the opcode, idn and buf_length parameters, and, put the
+ * response in the buffer field while updating the used size in buf_length.
+ */
+static int
+ufs_mtk_query_ioctl(struct ufs_hba *hba, u8 lun, void __user *buffer)
+{
+	struct ufs_ioctl_query_data *ioctl_data;
+	int err = 0;
+	int length = 0;
+	void *data_ptr;
+	bool flag;
+	u32 att;
+	u8 index = 0;
+	u8 *desc = NULL;
+
+	ioctl_data = kzalloc(sizeof(*ioctl_data), GFP_KERNEL);
+	if (!ioctl_data) {
+		err = -ENOMEM;
+		goto out;
+	}
+
+	/* extract params from user buffer */
+	err = copy_from_user(ioctl_data, buffer,
+			     sizeof(struct ufs_ioctl_query_data));
+	if (err) {
+		dev_err(hba->dev,
+			"%s: Failed copying buffer from user, err %d\n",
+			__func__, err);
+		goto out_release_mem;
+	}
+
+#if defined(CONFIG_UFSFEATURE)
+	if (ufsf_check_query(ioctl_data->opcode)) {
+		err = ufsf_query_ioctl(ufs_mtk_get_ufsf(hba), lun, buffer,
+				       ioctl_data, UFSFEATURE_SELECTOR);
+		goto out_release_mem;
+	}
+#endif
+
+	/* verify legal parameters & send query */
+	switch (ioctl_data->opcode) {
+	case UPIU_QUERY_OPCODE_READ_DESC:
+		switch (ioctl_data->idn) {
+		case QUERY_DESC_IDN_DEVICE:
+		case QUERY_DESC_IDN_CONFIGURATION:
+		case QUERY_DESC_IDN_INTERCONNECT:
+		case QUERY_DESC_IDN_GEOMETRY:
+		case QUERY_DESC_IDN_POWER:
+			index = 0;
+			break;
+		case QUERY_DESC_IDN_UNIT:
+			if (!ufs_is_valid_unit_desc_lun(&hba->dev_info, lun, 0)) {
+				dev_err(hba->dev,
+					"%s: No unit descriptor for lun 0x%x\n",
+					__func__, lun);
+				err = -EINVAL;
+				goto out_release_mem;
+			}
+			index = lun;
+			break;
+		default:
+			goto out_einval;
+		}
+		length = min_t(int, QUERY_DESC_MAX_SIZE,
+			       ioctl_data->buf_size);
+		desc = kzalloc(length, GFP_KERNEL);
+		if (!desc) {
+			dev_err(hba->dev, "%s: Failed allocating %d bytes\n",
+				__func__, length);
+			err = -ENOMEM;
+			goto out_release_mem;
+		}
+		err = ufshcd_query_descriptor_retry(hba, ioctl_data->opcode,
+						    ioctl_data->idn, index, 0,
+						    desc, &length);
+		break;
+	case UPIU_QUERY_OPCODE_READ_ATTR:
+		switch (ioctl_data->idn) {
+		case QUERY_ATTR_IDN_BOOT_LU_EN:
+		case QUERY_ATTR_IDN_POWER_MODE:
+		case QUERY_ATTR_IDN_ACTIVE_ICC_LVL:
+		case QUERY_ATTR_IDN_OOO_DATA_EN:
+		case QUERY_ATTR_IDN_BKOPS_STATUS:
+		case QUERY_ATTR_IDN_PURGE_STATUS:
+		case QUERY_ATTR_IDN_MAX_DATA_IN:
+		case QUERY_ATTR_IDN_MAX_DATA_OUT:
+		case QUERY_ATTR_IDN_REF_CLK_FREQ:
+		case QUERY_ATTR_IDN_CONF_DESC_LOCK:
+		case QUERY_ATTR_IDN_MAX_NUM_OF_RTT:
+		case QUERY_ATTR_IDN_EE_CONTROL:
+		case QUERY_ATTR_IDN_EE_STATUS:
+		case QUERY_ATTR_IDN_SECONDS_PASSED:
+			index = 0;
+			break;
+		case QUERY_ATTR_IDN_DYN_CAP_NEEDED:
+		case QUERY_ATTR_IDN_CORR_PRG_BLK_NUM:
+			index = lun;
+			break;
+		default:
+			goto out_einval;
+		}
+		err = ufshcd_query_attr(hba, ioctl_data->opcode,
+					ioctl_data->idn, index, 0, &att);
+		break;
+
+	case UPIU_QUERY_OPCODE_WRITE_ATTR:
+		err = copy_from_user(&att,
+				     buffer +
+				     sizeof(struct ufs_ioctl_query_data),
+				     sizeof(u32));
+		if (err) {
+			dev_err(hba->dev,
+				"%s: Failed copying buffer from user, err %d\n",
+				__func__, err);
+			goto out_release_mem;
+		}
+
+		switch (ioctl_data->idn) {
+		case QUERY_ATTR_IDN_BOOT_LU_EN:
+			index = 0;
+			if (!att) {
+				dev_err(hba->dev,
+					"%s: Illegal ufs query ioctl data, opcode 0x%x, idn 0x%x, att 0x%x\n",
+					__func__, ioctl_data->opcode,
+					(unsigned int)ioctl_data->idn, att);
+				err = -EINVAL;
+				goto out_release_mem;
+			}
+			break;
+		default:
+			goto out_einval;
+		}
+		err = ufshcd_query_attr(hba, ioctl_data->opcode,
+					ioctl_data->idn, index, 0, &att);
+		break;
+
+	case UPIU_QUERY_OPCODE_READ_FLAG:
+		switch (ioctl_data->idn) {
+		case QUERY_FLAG_IDN_FDEVICEINIT:
+		case QUERY_FLAG_IDN_PERMANENT_WPE:
+		case QUERY_FLAG_IDN_PWR_ON_WPE:
+		case QUERY_FLAG_IDN_BKOPS_EN:
+		case QUERY_FLAG_IDN_PURGE_ENABLE:
+		case QUERY_FLAG_IDN_FPHYRESOURCEREMOVAL:
+		case QUERY_FLAG_IDN_BUSY_RTC:
+			break;
+		default:
+			goto out_einval;
+		}
+		err = ufshcd_query_flag(hba, ioctl_data->opcode,
+					ioctl_data->idn, 0, &flag);
+		break;
+	default:
+		goto out_einval;
+	}
+
+	if (err) {
+		dev_err(hba->dev, "%s: Query for idn %d failed\n", __func__,
+			ioctl_data->idn);
+		goto out_release_mem;
+	}
+
+	/*
+	 * copy response data
+	 * As we might end up reading less data than what is specified in
+	 * "ioctl_data->buf_size". So we are updating "ioctl_data->
+	 * buf_size" to what exactly we have read.
+	 */
+	switch (ioctl_data->opcode) {
+	case UPIU_QUERY_OPCODE_READ_DESC:
+		ioctl_data->buf_size = min_t(int, ioctl_data->buf_size, length);
+		data_ptr = desc;
+		break;
+	case UPIU_QUERY_OPCODE_READ_ATTR:
+		ioctl_data->buf_size = sizeof(u32);
+		data_ptr = &att;
+		break;
+	case UPIU_QUERY_OPCODE_READ_FLAG:
+		ioctl_data->buf_size = 1;
+		data_ptr = &flag;
+		break;
+	case UPIU_QUERY_OPCODE_WRITE_ATTR:
+		goto out_release_mem;
+	default:
+		goto out_einval;
+	}
+
+	/* copy to user */
+	err = copy_to_user(buffer, ioctl_data,
+			   sizeof(struct ufs_ioctl_query_data));
+	if (err)
+		dev_err(hba->dev, "%s: Failed copying back to user.\n",
+			__func__);
+	err = copy_to_user(buffer + sizeof(struct ufs_ioctl_query_data),
+			   data_ptr, ioctl_data->buf_size);
+	if (err)
+		dev_err(hba->dev, "%s: err %d copying back to user.\n",
+			__func__, err);
+	goto out_release_mem;
+
+out_einval:
+	dev_err(hba->dev,
+		"%s: illegal ufs query ioctl data, opcode 0x%x, idn 0x%x\n",
+		__func__, ioctl_data->opcode, (unsigned int)ioctl_data->idn);
+	err = -EINVAL;
+out_release_mem:
+	kfree(ioctl_data);
+	kfree(desc);
+out:
+	return err;
+}
+
+/**
+ * ufs_mtk_ioctl - ufs ioctl callback registered in scsi_host
+ * @dev: scsi device required for per LUN queries
+ * @cmd: command opcode
+ * @buffer: user space buffer for transferring data
+ *
+ * Supported commands:
+ * UFS_IOCTL_QUERY
+ */
+static int
+ufs_mtk_ioctl(struct scsi_device *dev, unsigned int cmd, void __user *buffer)
+{
+	struct ufs_hba *hba = shost_priv(dev->host);
+	int err = 0;
+
+	BUG_ON(!hba);
+	if (!buffer) {
+		dev_err(hba->dev, "%s: User buffer is NULL!\n", __func__);
+		return -EINVAL;
+	}
+
+	switch (cmd) {
+	case UFS_IOCTL_QUERY:
+		pm_runtime_get_sync(hba->dev);
+		err = ufs_mtk_query_ioctl(hba,
+					  ufshcd_scsi_to_upiu_lun(dev->lun),
+					  buffer);
+		pm_runtime_put_sync(hba->dev);
+		break;
+	default:
+		err = -ENOIOCTLCMD;
+		dev_dbg(hba->dev, "%s: Unsupported ioctl cmd %d\n", __func__,
+			cmd);
+		break;
+	}
+
+	return err;
 }
 
 /**
@@ -665,6 +1493,7 @@ static int ufs_mtk_init(struct ufs_hba *hba)
 
 	/* Enable WriteBooster */
 	hba->caps |= UFSHCD_CAP_WB_EN;
+
 	hba->quirks |= UFSHCI_QUIRK_SKIP_MANUAL_WB_FLUSH_CTRL;
 	hba->vps->wb_flush_threshold = UFS_WB_BUF_REMAIN_PERCENT(80);
 
@@ -676,10 +1505,45 @@ static int ufs_mtk_init(struct ufs_hba *hba)
 	 * ufshcd_setup_clock(true) in ufshcd_hba_init() thus
 	 * phy clock setup is skipped.
 	 *
-	 * Enable phy clocks specifically here.
+	 * Enable phy power and clocks specifically here.
 	 */
 	ufs_mtk_mphy_power_on(hba, true);
 	ufs_mtk_setup_clocks(hba, true, POST_CHANGE);
+
+
+	cpu_latency_qos_add_request(&host->pm_qos_req,
+	     	   PM_QOS_DEFAULT_VALUE);
+	host->pm_qos_init = true;
+
+	ufs_mtk_biolog_init(host->qos_allowed, host->boot_device);
+	ufs_mtk_install_tracepoints();
+
+#if IS_ENABLED(CONFIG_SCSI_UFS_MEDIATEK_DBG)
+	ufs_mtk_dbg_register(hba);
+#endif
+
+#if IS_ENABLED(CONFIG_RPMB)
+	async_schedule(ufs_mtk_rpmb_add, hba);
+#endif
+
+	/* Provide SCSI host ioctl API */
+	hba->host->hostt->ioctl = (int (*)(struct scsi_device *, unsigned int,
+				   void __user *))ufs_mtk_ioctl;
+#ifdef CONFIG_COMPAT
+	hba->host->hostt->compat_ioctl = (int (*)(struct scsi_device *,
+					  unsigned int,
+					  void __user *))ufs_mtk_ioctl;
+#endif
+
+#if defined(CONFIG_UFSFEATURE)
+	/*
+	 * hba would be referred by ufsf_reset_host later, it
+	 * needs initialization first.
+	 */
+	host->ufsf.hba = hba;
+	ufsf_set_init_state(ufs_mtk_get_ufsf(hba));
+#endif
+
 
 	goto out;
 
@@ -755,14 +1619,14 @@ static int ufs_mtk_pwr_change_notify(struct ufs_hba *hba,
 	return ret;
 }
 
-static int ufs_mtk_unipro_set_pm(struct ufs_hba *hba, bool lpm)
+static int ufs_mtk_unipro_set_lpm(struct ufs_hba *hba, bool lpm)
 {
 	int ret;
 	struct ufs_mtk_host *host = ufshcd_get_variant(hba);
 
 	ret = ufshcd_dme_set(hba,
 			     UIC_ARG_MIB_SEL(VS_UNIPROPOWERDOWNCONTROL, 0),
-			     lpm);
+			     lpm ? 1 : 0);
 	if (!ret || !lpm) {
 		/*
 		 * Forcibly set as non-LPM mode if UIC commands is failed
@@ -782,7 +1646,7 @@ static int ufs_mtk_pre_link(struct ufs_hba *hba)
 
 	ufs_mtk_get_controller_version(hba);
 
-	ret = ufs_mtk_unipro_set_pm(hba, false);
+	ret = ufs_mtk_unipro_set_lpm(hba, false);
 	if (ret)
 		return ret;
 
@@ -831,12 +1695,13 @@ static int ufs_mtk_post_link(struct ufs_hba *hba)
 
 	/* configure auto-hibern8 timer to 10ms */
 	if (ufshcd_is_auto_hibern8_supported(hba)) {
-		ufshcd_auto_hibern8_update(hba,
-			FIELD_PREP(UFSHCI_AHIBERN8_TIMER_MASK, 10) |
-			FIELD_PREP(UFSHCI_AHIBERN8_SCALE_MASK, 3));
+		hba->ahit = FIELD_PREP(UFSHCI_AHIBERN8_TIMER_MASK, 10) |
+			    FIELD_PREP(UFSHCI_AHIBERN8_SCALE_MASK, 3);
 	}
 
 	ufs_mtk_setup_clk_gating(hba);
+
+	device_enable_async_suspend(hba->dev);
 
 	return 0;
 }
@@ -864,6 +1729,10 @@ static int ufs_mtk_link_startup_notify(struct ufs_hba *hba,
 static int ufs_mtk_device_reset(struct ufs_hba *hba)
 {
 	struct arm_smccc_res res;
+
+#if defined(CONFIG_UFSFEATURE)
+	ufsf_reset_host(ufs_mtk_get_ufsf(hba));
+#endif
 
 	/* disable hba before device reset */
 	ufshcd_hba_stop(hba);
@@ -897,7 +1766,7 @@ static int ufs_mtk_link_set_hpm(struct ufs_hba *hba)
 	if (err)
 		return err;
 
-	err = ufs_mtk_unipro_set_pm(hba, false);
+	err = ufs_mtk_unipro_set_lpm(hba, false);
 	if (err)
 		return err;
 
@@ -918,10 +1787,10 @@ static int ufs_mtk_link_set_lpm(struct ufs_hba *hba)
 {
 	int err;
 
-	err = ufs_mtk_unipro_set_pm(hba, true);
+	err = ufs_mtk_unipro_set_lpm(hba, true);
 	if (err) {
 		/* Resume UniPro state for following error recovery */
-		ufs_mtk_unipro_set_pm(hba, false);
+		ufs_mtk_unipro_set_lpm(hba, false);
 		return err;
 	}
 
@@ -1010,7 +1879,7 @@ static void ufs_mtk_dbg_register_dump(struct ufs_hba *hba)
 			 "MPHY Ctrl ");
 
 	/* Direct debugging information to REG_MTK_PROBE */
-	ufshcd_writel(hba, 0x20, REG_UFS_DEBUG_SEL);
+	ufs_mtk_dbg_sel(hba);
 	ufshcd_dump_regs(hba, REG_UFS_PROBE, 0x4, "Debug Probe ");
 }
 
@@ -1061,6 +1930,60 @@ static void ufs_mtk_event_notify(struct ufs_hba *hba,
 	trace_ufs_mtk_event(evt, val);
 }
 
+static void ufs_mtk_setup_xfer_req(struct ufs_hba *hba, int tag,
+				   bool is_scsi)
+{
+	struct ufshcd_lrb *lrbp;
+	struct scsi_cmnd *cmd;
+
+	if (is_scsi) {
+		lrbp = &hba->lrb[tag];
+		cmd = lrbp->cmd;
+
+		if (!ufs_mtk_is_data_cmd(cmd))
+			return;
+
+		ufs_mtk_biolog_send_command(tag, cmd);
+		ufs_mtk_biolog_check(1);
+	}
+}
+
+static void ufs_mtk_auto_hibern8_disable(struct ufs_hba *hba)
+{
+	unsigned long flags;
+	int ret;
+
+	/* disable auto-hibern8 */
+	spin_lock_irqsave(hba->host->host_lock, flags);
+	ufshcd_writel(hba, 0, REG_AUTO_HIBERNATE_IDLE_TIMER);
+	spin_unlock_irqrestore(hba->host->host_lock, flags);
+
+	/* wait host return to idle state when auto-hibern8 off */
+	ufs_mtk_wait_idle_state(hba, 5);
+
+	ret = ufs_mtk_wait_link_state(hba, VS_LINK_UP, 100);
+	if (ret)
+		dev_warn(hba->dev, "exit h8 state fail, ret=%d\n", ret);
+}
+
+static void ufs_mtk_hibern8_notify(struct ufs_hba *hba, enum uic_cmd_dme cmd,
+				    enum ufs_notify_change_status status)
+{
+	if (!ufshcd_is_auto_hibern8_supported(hba))
+		return;
+
+	if (status == PRE_CHANGE && cmd == UIC_CMD_DME_HIBER_ENTER)
+		ufs_mtk_auto_hibern8_disable(hba);
+}
+
+void ufs_mtk_setup_task_mgmt(struct ufs_hba *hba, int tag, u8 tm_function)
+{
+#if defined(CONFIG_UFSFEATURE)
+	if (tm_function == UFS_LOGICAL_RESET)
+		ufsf_prepare_reset_lu(ufs_mtk_get_ufsf(hba));
+#endif
+}
+
 /*
  * struct ufs_hba_mtk_vops - UFS MTK specific variant operations
  *
@@ -1075,6 +1998,8 @@ static const struct ufs_hba_variant_ops ufs_hba_mtk_vops = {
 	.hce_enable_notify   = ufs_mtk_hce_enable_notify,
 	.link_startup_notify = ufs_mtk_link_startup_notify,
 	.pwr_change_notify   = ufs_mtk_pwr_change_notify,
+	.setup_xfer_req      = ufs_mtk_setup_xfer_req,
+	.hibern8_notify      = ufs_mtk_hibern8_notify,
 	.apply_dev_quirks    = ufs_mtk_apply_dev_quirks,
 	.fixup_dev_quirks    = ufs_mtk_fixup_dev_quirks,
 	.suspend             = ufs_mtk_suspend,
@@ -1082,6 +2007,7 @@ static const struct ufs_hba_variant_ops ufs_hba_mtk_vops = {
 	.dbg_register_dump   = ufs_mtk_dbg_register_dump,
 	.device_reset        = ufs_mtk_device_reset,
 	.event_notify        = ufs_mtk_event_notify,
+	.setup_task_mgmt     = ufs_mtk_setup_task_mgmt,
 };
 
 /**
@@ -1141,25 +2067,139 @@ out:
  */
 static int ufs_mtk_remove(struct platform_device *pdev)
 {
-	struct ufs_hba *hba =  platform_get_drvdata(pdev);
+	struct ufs_hba *hba = platform_get_drvdata(pdev);
 
 	pm_runtime_get_sync(&(pdev)->dev);
+
+#if defined(CONFIG_UFSFEATURE)
+	ufsf_remove(ufs_mtk_get_ufsf(hba));
+#endif
+
 	ufshcd_remove(hba);
+	ufs_mtk_biolog_exit();
+	ufs_mtk_uninstall_tracepoints();
 	return 0;
 }
 
+int ufs_mtk_pltfrm_suspend(struct device *dev)
+{
+	int ret;
+#if defined(CONFIG_UFSFEATURE)
+	struct ufs_hba *hba = dev_get_drvdata(dev);
+	struct ufsf_feature *ufsf = ufs_mtk_get_ufsf(hba);
+
+	ufsf_suspend(ufsf);
+#endif
+
+	ret = ufshcd_pltfrm_suspend(dev);
+#if defined(CONFIG_UFSFEATURE)
+	/* We assume link is off */
+	if (ret)
+		ufsf_resume(ufsf, true);
+#endif
+
+	return ret;
+}
+
+int ufs_mtk_pltfrm_resume(struct device *dev)
+{
+	int ret;
+#if defined(CONFIG_UFSFEATURE)
+	struct ufs_hba *hba = dev_get_drvdata(dev);
+	struct ufsf_feature *ufsf = ufs_mtk_get_ufsf(hba);
+	bool is_link_off = ufshcd_is_link_off(hba);
+#endif
+
+	ret = ufshcd_pltfrm_resume(dev);
+#if defined(CONFIG_UFSFEATURE)
+	if (!ret)
+		ufsf_resume(ufsf, is_link_off);
+#endif
+
+	return ret;
+}
+
+int ufs_mtk_pltfrm_runtime_suspend(struct device *dev)
+{
+	int ret;
+#if defined(CONFIG_UFSFEATURE)
+	struct ufs_hba *hba = dev_get_drvdata(dev);
+	struct ufsf_feature *ufsf = ufs_mtk_get_ufsf(hba);
+
+	ufsf_suspend(ufsf);
+#endif
+
+	ret = ufshcd_pltfrm_runtime_suspend(dev);
+#if defined(CONFIG_UFSFEATURE)
+	/* We assume link is off */
+	if (ret)
+		ufsf_resume(ufsf, true);
+#endif
+
+	return ret;
+}
+
+int ufs_mtk_pltfrm_runtime_resume(struct device *dev)
+{
+	int ret;
+#if defined(CONFIG_UFSFEATURE)
+	struct ufs_hba *hba = dev_get_drvdata(dev);
+	struct ufsf_feature *ufsf = ufs_mtk_get_ufsf(hba);
+	bool is_link_off = ufshcd_is_link_off(hba);
+#endif
+
+	ret = ufshcd_pltfrm_runtime_resume(dev);
+#if defined(CONFIG_UFSFEATURE)
+	if (!ret)
+		ufsf_resume(ufsf, is_link_off);
+#endif
+
+	return ret;
+}
+
+void ufs_mtk_shutdown(struct platform_device *pdev)
+{
+	struct device *dev = &pdev->dev;
+	struct ufs_hba *hba = dev_get_drvdata(dev);
+	struct scsi_device *sdev;
+
+#if defined(CONFIG_UFSFEATURE)
+	struct ufsf_feature *ufsf = ufs_mtk_get_ufsf(hba);
+	ufsf_suspend(ufsf);
+#endif
+
+	/*
+	 * Quiesce all SCSI devices to prevent any non-PM requests sending
+	 * from block layer during and after shutdown.
+	 *
+	 * Note. Using scsi_autopm_get_device() instead of pm_runtime_disable()
+	 * is to prevent noisy message by below checking,
+	 * WARN_ON_ONCE(sdev->quiesced_by && sdev->quiesced_by != current);
+	 * This warning shows up if we try to quiesce a runtime-suspended
+	 * SCSI device. This is possible during our new shutdown flow.
+	 * Using scsi_autopm_get_device() to resume all SCSI devices first
+	 * can prevent it.
+	 */
+	shost_for_each_device(sdev, hba->host)
+		scsi_device_quiesce(sdev);
+
+
+	/* Alaways shutdown even in case of error */
+	ufshcd_pltfrm_shutdown(pdev);
+}
+
 static const struct dev_pm_ops ufs_mtk_pm_ops = {
-	.suspend         = ufshcd_pltfrm_suspend,
-	.resume          = ufshcd_pltfrm_resume,
-	.runtime_suspend = ufshcd_pltfrm_runtime_suspend,
-	.runtime_resume  = ufshcd_pltfrm_runtime_resume,
+	.suspend         = ufs_mtk_pltfrm_suspend,
+	.resume          = ufs_mtk_pltfrm_resume,
+	.runtime_suspend = ufs_mtk_pltfrm_runtime_suspend,
+	.runtime_resume  = ufs_mtk_pltfrm_runtime_resume,
 	.runtime_idle    = ufshcd_pltfrm_runtime_idle,
 };
 
 static struct platform_driver ufs_mtk_pltform = {
 	.probe      = ufs_mtk_probe,
 	.remove     = ufs_mtk_remove,
-	.shutdown   = ufshcd_pltfrm_shutdown,
+	.shutdown   = ufs_mtk_shutdown,
 	.driver = {
 		.name   = "ufshcd-mtk",
 		.pm     = &ufs_mtk_pm_ops,

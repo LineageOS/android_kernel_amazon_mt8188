@@ -14,6 +14,8 @@
 #include <linux/mfd/syscon.h>
 #include <linux/of_device.h>
 #include <linux/regmap.h>
+#include <linux/arm-smccc.h>
+#include <linux/soc/mediatek/mtk_sip_svc.h>
 
 #include "mtu3.h"
 #include "mtu3_dr.h"
@@ -24,6 +26,16 @@
 #define WC1_IS_EN	BIT(25)
 #define WC1_IS_P	BIT(6)  /* polarity for ip sleep */
 
+/* mt8183 */
+#define PERI_WK_CTRL0	0x0
+#define WC0_IS_C(x)	((u32)(((x) & 0xf) << 28))  /* cycle debounce */
+#define WC0_IS_P	BIT(12)	/* polarity */
+#define WC0_IS_EN	BIT(6)
+
+/* mt8192 */
+#define WC0_SSUSB0_CDEN		BIT(6)
+#define WC0_IS_SPM_EN		BIT(1)
+
 /* mt2712 etc */
 #define PERI_SSUSB_SPM_CTRL	0x0
 #define SSC_IP_SLEEP_EN	BIT(4)
@@ -32,6 +44,8 @@
 enum ssusb_uwk_vers {
 	SSUSB_UWK_V1 = 1,
 	SSUSB_UWK_V2,
+	SSUSB_UWK_V1_1 = 101,	/* specific revision 1.01 */
+	SSUSB_UWK_V1_2,		/* specific revision 1.02 */
 };
 
 /*
@@ -47,6 +61,16 @@ static void ssusb_wakeup_ip_sleep_set(struct ssusb_mtk *ssusb, bool enable)
 		reg = ssusb->uwk_reg_base + PERI_WK_CTRL1;
 		msk = WC1_IS_EN | WC1_IS_C(0xf) | WC1_IS_P;
 		val = enable ? (WC1_IS_EN | WC1_IS_C(0x8)) : 0;
+		break;
+	case SSUSB_UWK_V1_1:
+		reg = ssusb->uwk_reg_base + PERI_WK_CTRL0;
+		msk = WC0_IS_EN | WC0_IS_C(0xf) | WC0_IS_P;
+		val = enable ? (WC0_IS_EN | WC0_IS_C(0x8)) : 0;
+		break;
+	case SSUSB_UWK_V1_2:
+		reg = ssusb->uwk_reg_base + PERI_WK_CTRL0;
+		msk = WC0_SSUSB0_CDEN | WC0_IS_SPM_EN;
+		val = enable ? msk : 0;
 		break;
 	case SSUSB_UWK_V2:
 		reg = ssusb->uwk_reg_base + PERI_SSUSB_SPM_CTRL;
@@ -112,6 +136,7 @@ int ssusb_host_enable(struct ssusb_mtk *ssusb)
 	int u3_ports_disabed;
 	u32 check_clk;
 	u32 value;
+	int ret;
 	int i;
 
 	/* power on host ip */
@@ -143,7 +168,12 @@ int ssusb_host_enable(struct ssusb_mtk *ssusb)
 	if (num_u3p > u3_ports_disabed)
 		check_clk = SSUSB_U3_MAC_RST_B_STS;
 
-	return ssusb_check_clocks(ssusb, check_clk);
+	ret =  ssusb_check_clocks(ssusb, check_clk);
+
+	/* update txdeemph */
+	ssusb_set_txdeemph(ssusb);
+
+	return ret;
 }
 
 int ssusb_host_disable(struct ssusb_mtk *ssusb, bool suspend)
@@ -186,6 +216,8 @@ int ssusb_host_disable(struct ssusb_mtk *ssusb, bool suspend)
 	if (ret)
 		dev_err(ssusb->dev, "ip sleep failed!!!\n");
 
+	usleep_range(200, 250);
+
 	return ret;
 }
 
@@ -205,7 +237,10 @@ static void ssusb_host_setup(struct ssusb_mtk *ssusb)
 		ssusb_set_force_mode(ssusb, MTU3_DR_FORCE_HOST);
 
 	/* if port0 supports dual-role, works as host mode by default */
-	ssusb_set_vbus(&ssusb->otg_switch, 1);
+	if (ssusb->dr_mode == USB_DR_MODE_HOST) {
+		ssusb_set_force_vbus(ssusb, false);
+		ssusb_set_vbus(&ssusb->otg_switch, 1);
+	}
 }
 
 static void ssusb_host_cleanup(struct ssusb_mtk *ssusb)
@@ -214,6 +249,46 @@ static void ssusb_host_cleanup(struct ssusb_mtk *ssusb)
 		ssusb_set_vbus(&ssusb->otg_switch, 0);
 
 	ssusb_host_disable(ssusb, false);
+}
+
+static void ssusb_get_platform_driver(struct ssusb_mtk *ssusb)
+{
+	struct device_node *parent_dn = ssusb->dev->of_node;
+	struct device_node *child;
+	struct platform_device *pdev;
+
+	for_each_child_of_node(parent_dn, child) {
+		if (of_device_is_compatible(child, "mediatek,mtk-xhci") ||
+		    of_device_is_compatible(child, "mediatek,mtk-xhci-p1")) {
+			pdev = of_find_device_by_node(child);
+			if (pdev) {
+				ssusb->xhci_pdrv =
+					to_platform_driver(pdev->dev.driver);
+				break;
+			}
+		}
+	}
+}
+
+static void mtk_ssusb_smc_request(struct ssusb_mtk *ssusb,
+	enum mtu3_power_state state)
+{
+	struct arm_smccc_res res;
+	int op;
+
+	switch (state) {
+	case MTU3_STATE_POWER_OFF:
+		op = 1;
+		break;
+	case MTU3_STATE_POWER_ON:
+		op = 0;
+		break;
+	default:
+		return;
+	}
+
+	arm_smccc_smc(MTK_SIP_KERNEL_USB_CONTROL,
+		op, 0, 0, 0, 0, 0, 0, &res);
 }
 
 /*
@@ -227,6 +302,11 @@ int ssusb_host_init(struct ssusb_mtk *ssusb, struct device_node *parent_dn)
 	struct device *parent_dev = ssusb->dev;
 	int ret;
 
+	if (ssusb->mtcmos_switch) {
+		dev_info(ssusb->dev, "smc request open infra!\n");
+		mtk_ssusb_smc_request(ssusb, 1);
+	}
+
 	ssusb_host_setup(ssusb);
 
 	ret = of_platform_populate(parent_dn, NULL, NULL, parent_dev);
@@ -238,11 +318,24 @@ int ssusb_host_init(struct ssusb_mtk *ssusb, struct device_node *parent_dn)
 
 	dev_info(parent_dev, "xHCI platform device register success...\n");
 
+	ssusb_get_platform_driver(ssusb);
+
+	/* set noise still transfer */
+	if (ssusb->noise_still_tr) {
+		mtu3_setbits(ssusb->mac_base, U3D_USB_BUS_PERFORMANCE,
+			NOISE_STILL_TRANSFER);
+	}
+
 	return 0;
 }
 
 void ssusb_host_exit(struct ssusb_mtk *ssusb)
 {
+	if (ssusb->mtcmos_switch) {
+		dev_info(ssusb->dev, "smc request close infra!\n");
+		mtk_ssusb_smc_request(ssusb, 0);
+	}
+
 	of_platform_depopulate(ssusb->dev);
 	ssusb_host_cleanup(ssusb);
 }

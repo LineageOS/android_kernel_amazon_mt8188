@@ -651,6 +651,7 @@ static int get_v4l2_buffer32(struct v4l2_buffer __user *p64,
 {
 	u32 type;
 	u32 length;
+	u32 reserved2 = 0;
 	s32 request_fd;
 	enum v4l2_memory memory;
 	struct v4l2_plane32 __user *uplane32;
@@ -667,6 +668,8 @@ static int get_v4l2_buffer32(struct v4l2_buffer __user *p64,
 	    put_user(memory, &p64->memory) ||
 	    get_user(length, &p32->length) ||
 	    put_user(length, &p64->length) ||
+	    get_user(reserved2, &p32->reserved2) ||
+	    put_user(reserved2, &p64->reserved2) ||
 	    get_user(request_fd, &p32->request_fd) ||
 	    put_user(request_fd, &p64->request_fd))
 		return -EFAULT;
@@ -751,6 +754,7 @@ static int get_v4l2_buffer32_time32(struct v4l2_buffer_time32 __user *p64,
 {
 	u32 type;
 	u32 length;
+	u32 reserved2 = 0;
 	s32 request_fd;
 	enum v4l2_memory memory;
 	struct v4l2_plane32 __user *uplane32;
@@ -767,6 +771,8 @@ static int get_v4l2_buffer32_time32(struct v4l2_buffer_time32 __user *p64,
 	    put_user(memory, &p64->memory) ||
 	    get_user(length, &p32->length) ||
 	    put_user(length, &p64->length) ||
+	    get_user(reserved2, &p32->reserved2) ||
+	    put_user(reserved2, &p64->reserved2) ||
 	    get_user(request_fd, &p32->request_fd) ||
 	    put_user(request_fd, &p64->request_fd))
 		return -EFAULT;

@@ -30,7 +30,12 @@ uvc_video_encode_header(struct uvc_video *video, struct uvc_buffer *buf,
 	data[0] = 2;
 	data[1] = UVC_STREAM_EOH | video->fid;
 
-	if (buf->bytesused - video->queue.buf_used <= len - 2)
+	if (video->fcc == V4L2_PIX_FMT_NV12M) {
+		if (video->width*video->height*3/2 - video->queue.buf_used <= len - 2)
+			data[1] |= UVC_STREAM_EOF;
+		return 2;
+	}
+	if (buf->bytesused + buf->bytesused1 - video->queue.buf_used <= len - 2)
 		data[1] |= UVC_STREAM_EOF;
 
 	return 2;
@@ -43,7 +48,51 @@ uvc_video_encode_data(struct uvc_video *video, struct uvc_buffer *buf,
 	struct uvc_video_queue *queue = &video->queue;
 	unsigned int nbytes;
 	void *mem;
+	unsigned int len_temp;
 
+	if (video->fcc == V4L2_PIX_FMT_NV12M) {
+		if (queue->buf_used + len > video->width*video->height*3/2) {
+			/*640*360*3/2 -len ~640*360*3/2*/
+			mem = buf->mem1 + queue->buf_used - video->width*video->height;
+			nbytes = video->width*video->height*3/2 - queue->buf_used;
+			memcpy(data, mem, nbytes);
+			queue->buf_used += nbytes;
+			return nbytes;
+		} else	if (queue->buf_used > video->width*video->height) {
+			/*640*360 ~ 640*360*3/2 -len */
+			mem = buf->mem1 + queue->buf_used - video->width*video->height;
+			len_temp = video->width*video->height*3/2 - queue->buf_used;
+			nbytes = min_t(unsigned int, (unsigned int)len, len_temp);
+			memcpy(data, mem, nbytes);
+			queue->buf_used += nbytes;
+			return nbytes;
+		} else if (queue->buf_used + len < video->width*video->height) {
+			/*0~ 640*360 -len*/
+			mem = buf->mem + queue->buf_used;
+			len_temp = video->width*video->height - queue->buf_used;
+			nbytes = min_t(unsigned int, (unsigned int)len, len_temp);
+			memcpy(data, mem, nbytes);
+			queue->buf_used += nbytes;
+			return nbytes;
+		}
+
+		/*640*360 -len ~640*360 */
+		mem = buf->mem + queue->buf_used;
+		len_temp = video->width*video->height - queue->buf_used;
+		nbytes = min_t(unsigned int, (unsigned int)len, len_temp);
+		memcpy(data, mem, nbytes);
+		queue->buf_used += nbytes;
+		len_temp = nbytes;
+
+		mem = buf->mem1 + queue->buf_used - video->width*video->height;
+		nbytes = len - nbytes;
+		memcpy(data + len_temp, mem, nbytes);
+		queue->buf_used += nbytes;
+		nbytes = len;
+		return nbytes;
+	}
+
+	/*for MJPEG/YUV*/
 	/* Copy video data to the USB buffer. */
 	mem = buf->mem + queue->buf_used;
 	nbytes = min((unsigned int)len, buf->bytesused - queue->buf_used);
@@ -101,24 +150,64 @@ uvc_video_encode_isoc(struct usb_request *req, struct uvc_video *video,
 	void *mem = req->buf;
 	int len = video->req_size;
 	int ret;
+	int req_len = 0;
+	int len_temp;
 
-	/* Add the header. */
-	ret = uvc_video_encode_header(video, buf, mem, len);
-	mem += ret;
-	len -= ret;
+	switch (uvc_get_speed()) {
+	case USB_SPEED_SUPER:
+		/* Add the header. */
+		ret = uvc_video_encode_header(video, buf, mem, len);
+		mem += ret;
+		len -= ret;
 
-	/* Process video data. */
-	ret = uvc_video_encode_data(video, buf, mem, len);
-	len -= ret;
+		/* Process video data. */
+		ret = uvc_video_encode_data(video, buf, mem, len);
+		len -= ret;
 
-	req->length = video->req_size - len;
+		req->length = video->req_size - len;
 
-	if (buf->bytesused == video->queue.buf_used) {
-		video->queue.buf_used = 0;
-		buf->state = UVC_BUF_STATE_DONE;
-		uvcg_queue_next_buffer(&video->queue, buf);
-		video->fid ^= UVC_STREAM_FID;
+		if (buf->bytesused + buf->bytesused1 == video->queue.buf_used) {
+			video->queue.buf_used = 0;
+			buf->state = UVC_BUF_STATE_DONE;
+			uvcg_queue_next_buffer(&video->queue, buf);
+			video->fid ^= UVC_STREAM_FID;
+		}
+		break;
+	case USB_SPEED_HIGH:
+		while (req_len < len) {
+			/* Add the header. */
+			len_temp = video->ep->maxpacket*(video->ep->mult);
+			ret = uvc_video_encode_header(video, buf, mem, len_temp);
+			mem += ret;
+			req_len += ret;
+			/* Process video data. */
+			ret = uvc_video_encode_data(video, buf, mem, len_temp - 2);
+			mem += ret;
+			req_len += ret;
+
+			len_temp = buf->bytesused + buf->bytesused1;
+			if (video->fcc == V4L2_PIX_FMT_NV12M) {
+				if (video->width*video->height*3/2 == video->queue.buf_used) {
+					video->queue.buf_used = 0;
+					buf->state = UVC_BUF_STATE_DONE;
+					uvcg_queue_next_buffer(&video->queue, buf);
+					video->fid ^= UVC_STREAM_FID;
+					break;
+				}
+			} else if (len_temp == video->queue.buf_used) {
+				video->queue.buf_used = 0;
+				buf->state = UVC_BUF_STATE_DONE;
+				uvcg_queue_next_buffer(&video->queue, buf);
+				video->fid ^= UVC_STREAM_FID;
+				break;
+			}
+		}
+		req->length = req_len;
+		break;
+	default:
+		break; /*others are ignored */
 	}
+
 }
 
 /* --------------------------------------------------------------------------
@@ -133,6 +222,8 @@ static int uvcg_video_ep_queue(struct uvc_video *video, struct usb_request *req)
 	if (ret < 0) {
 		uvcg_err(&video->uvc->func, "Failed to queue request (%d).\n",
 			 ret);
+		if (ret == -ESHUTDOWN)
+			return ret;
 
 		/* If the endpoint is disabled the descriptor may be NULL. */
 		if (video->ep->desc) {
@@ -208,15 +299,28 @@ uvc_video_free_requests(struct uvc_video *video)
 static int
 uvc_video_alloc_requests(struct uvc_video *video)
 {
-	unsigned int req_size;
+	unsigned int req_size = 0;
 	unsigned int i;
 	int ret = -ENOMEM;
 
 	BUG_ON(video->req_size);
 
-	req_size = video->ep->maxpacket
+	switch (uvc_get_speed()) {
+	case USB_SPEED_SUPER:
+		req_size = video->ep->maxpacket
 		 * max_t(unsigned int, video->ep->maxburst, 1)
 		 * (video->ep->mult);
+		pr_debug("uvc_video_alloc_requests ss\n");
+		break;
+
+	case USB_SPEED_HIGH:
+		req_size = 48*1024;
+		pr_debug("uvc_video_alloc_requests hs\n");
+		break;
+
+	default:
+		break; /*others are ignored */
+	}
 
 	video->ureq = kcalloc(video->uvc_num_requests, sizeof(struct uvc_request), GFP_KERNEL);
 	if (video->ureq == NULL)
@@ -394,7 +498,7 @@ int uvcg_video_init(struct uvc_video *video, struct uvc_device *uvc)
 	video->imagesize = 320 * 240 * 2;
 
 	/* Initialize the video buffers queue. */
-	uvcg_queue_init(&video->queue, V4L2_BUF_TYPE_VIDEO_OUTPUT,
+	uvcg_queue_init(&video->queue, V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE,
 			&video->mutex);
 	return 0;
 }

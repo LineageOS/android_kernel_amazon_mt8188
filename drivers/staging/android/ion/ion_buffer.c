@@ -134,8 +134,12 @@ struct ion_buffer *ion_buffer_alloc(struct ion_device *dev, size_t len,
 {
 	struct ion_buffer *buffer = NULL;
 	struct ion_heap *heap;
+#if IS_ENABLED(CONFIG_MTK_ION_MM_HEAP)
+	unsigned int heap_default_mask = ~0;
+#endif
 
 	if (!dev || !len) {
+		pr_info("[ION] %s failed!! len:0x%zx\n", __func__, len);
 		return ERR_PTR(-EINVAL);
 	}
 
@@ -146,25 +150,57 @@ struct ion_buffer *ion_buffer_alloc(struct ion_device *dev, size_t len,
 	 * succeeded or all heaps have been tried
 	 */
 	len = PAGE_ALIGN(len);
-	if (!len)
+	if (!len) {
+		pr_info("[ION] size is error! len:0x%zx\n", len);
 		return ERR_PTR(-EINVAL);
+	}
 
 	down_read(&dev->lock);
-	plist_for_each_entry(heap, &dev->heaps, node) {
-		/* if the caller didn't specify this heap id */
-		if (!((1 << heap->id) & heap_id_mask))
-			continue;
-		buffer = ion_buffer_create(heap, dev, len, flags);
-		if (!IS_ERR(buffer))
-			break;
+#if IS_ENABLED(CONFIG_MTK_ION_MM_HEAP)
+	if (heap_id_mask == heap_default_mask) {
+		plist_for_each_entry(heap, &dev->heaps, node) {
+			/* Some case (as C2 audio decoder) cannot set heap_id
+			 * with AOSP framework. Therefore, specify
+			 * mtk_ion_mm_heap as the default heap when it is
+			 * supported by Mediatek.
+			 */
+			if (strcmp(heap->name, "mtk_ion_mm_heap"))
+				continue;
+			buffer = ion_buffer_create(heap, dev, len, flags);
+			if (!IS_ERR(buffer))
+				break;
+		}
+	} else
+#endif
+	{
+		plist_for_each_entry(heap, &dev->heaps, node) {
+			/* if the caller didn't specify this heap id */
+			if (!((1 << heap->id) & heap_id_mask))
+				continue;
+			buffer = ion_buffer_create(heap, dev, len, flags);
+			if (!IS_ERR(buffer))
+				break;
+		}
 	}
+
 	up_read(&dev->lock);
 
-	if (!buffer)
+	if (!buffer) {
+		pr_info("[ION] buffer is NULL! mask:0x%x\n", heap_id_mask);
 		return ERR_PTR(-ENODEV);
+	}
 
-	if (IS_ERR(buffer))
+	if (IS_ERR(buffer)) {
+		pr_info("[ION] buffer is error! mask:0x%x\n", heap_id_mask);
 		return ERR_CAST(buffer);
+	}
+
+#if IS_ENABLED(CONFIG_MTK_ION_DEBUG)
+	/* add buffer to alloc_list */
+	mutex_lock(&heap->alloc_lock);
+	list_add(&buffer->list, &heap->alloc_list);
+	mutex_unlock(&heap->alloc_lock);
+#endif
 
 	return buffer;
 }
@@ -235,6 +271,13 @@ int ion_buffer_destroy(struct ion_device *dev, struct ion_buffer *buffer)
 
 	heap = buffer->heap;
 	track_buffer_destroyed(buffer);
+
+#if IS_ENABLED(CONFIG_MTK_ION_DEBUG)
+	/* remove buffer from alloc_list */
+	mutex_lock(&heap->alloc_lock);
+	list_del(&buffer->list);
+	mutex_unlock(&heap->alloc_lock);
+#endif
 
 	if (heap->flags & ION_HEAP_FLAG_DEFER_FREE)
 		ion_heap_freelist_add(heap, buffer);

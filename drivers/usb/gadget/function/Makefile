@@ -5,6 +5,7 @@
 
 ccflags-y			:= -I$(srctree)/drivers/usb/gadget/
 ccflags-y			+= -I$(srctree)/drivers/usb/gadget/udc/
+ccflags-$(CONFIG_USB_F_UVC) += -I$(srctree)/drivers/media/platform/mtk-jpeg/
 
 # USB Functions
 usb_f_acm-y			:= f_acm.o

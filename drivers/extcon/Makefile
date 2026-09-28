@@ -2,6 +2,9 @@
 
 # Makefile for external connector class (extcon) devices
 #
+subdir-ccflags-y += -I$(srctree)/drivers/usb/core
+subdir-ccflags-y += -I$(srctree)/drivers/power/supply
+ccflags-$(CONFIG_DRM_MEDIATEK_V2) += -I$(srctree)/drivers/gpu/drm/mediatek/mediatek_v2/
 
 obj-$(CONFIG_EXTCON)		+= extcon-core.o
 extcon-core-objs		+= extcon.o devres.o
@@ -25,3 +28,4 @@ obj-$(CONFIG_EXTCON_RT8973A)	+= extcon-rt8973a.o
 obj-$(CONFIG_EXTCON_SM5502)	+= extcon-sm5502.o
 obj-$(CONFIG_EXTCON_USB_GPIO)	+= extcon-usb-gpio.o
 obj-$(CONFIG_EXTCON_USBC_CROS_EC) += extcon-usbc-cros-ec.o
+obj-$(CONFIG_EXTCON_POGO_PIN)	+= extcon-pogo-pin.o extcon-pogo-pin-irq.o

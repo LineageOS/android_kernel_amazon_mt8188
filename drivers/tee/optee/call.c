@@ -593,6 +593,12 @@ static int check_mem_type(unsigned long start, size_t num_pages)
 	struct mm_struct *mm = current->mm;
 	int rc;
 
+#if IS_ENABLED(CONFIG_MTK_TEE_GP_SUPPORT)
+	/* for kthread, and to support kernel shm reg */
+	if (mm == NULL || start >= PAGE_OFFSET)
+		return 0;
+#endif
+
 	/*
 	 * Allow kernel address to register with OP-TEE as kernel
 	 * pages are configured as normal memory only.

@@ -36,6 +36,9 @@ struct uvc_buffer {
 	void *mem;
 	unsigned int length;
 	unsigned int bytesused;
+	void *mem1;
+	unsigned int length1;
+	unsigned int bytesused1;
 };
 
 #define UVC_QUEUE_DISCONNECTED		(1 << 0)

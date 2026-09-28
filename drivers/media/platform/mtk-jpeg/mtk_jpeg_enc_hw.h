@@ -16,6 +16,8 @@
 #define JPEG_ENC_INT_STATUS_MASK_ALLIRQ	0x13
 
 #define JPEG_ENC_DST_ADDR_OFFSET_MASK	GENMASK(3, 0)
+#define JPEG_ENC_QUALITY_MASK		GENMASK(31, 16)
+#define JPEG_ENC_LOW_LATENCY_MOMDE_MASK	GENMASK(31, 30)
 
 #define JPEG_ENC_CTRL_YUV_FORMAT_MASK	0x18
 #define JPEG_ENC_CTRL_RESTART_EN_BIT	BIT(10)
@@ -68,6 +70,17 @@
 #define JPEG_ENC_DCM_CTRL		0x300
 #define JPEG_ENC_CODEC_SEL		0x314
 #define JPEG_ENC_ULTRA_THRES		0x318
+#define JPEG_ENC_LOW_LATENCY_MODE	0x568
+#define JPEG_ENC_SOURCE_RDY_LINE_0	0x56c
+#define JPEG_ENC_SOURCE_RDY_LINE_1	0x570
+#define JPEG_ENC_SOURCE_RDY_LINE_2	0x574
+#define JPEG_ENC_SOURCE_RDY_LINE_3	0x578
+#define JPEG_ENC_LOW_LATENCY_DEBUG	0x57c
+#define JPEG_ENC_SRC_LUMA_ADDR_EXT      0x584
+#define JPEG_ENC_SRC_CHROMA_ADDR_EXT    0x588
+#define JPEG_ENC_Q_TBL_ADDR_EXT         0x58C
+#define JPEG_ENC_DEST_ADDR0_EXT         0x590
+#define JPEG_ENC_STALL_ADDR0_EXT        0x594
 
 /**
  * struct mtk_jpeg_enc_qlt - JPEG encoder quality data
@@ -81,11 +94,23 @@ struct mtk_jpeg_enc_qlt {
 
 void mtk_jpeg_enc_reset(void __iomem *base);
 u32 mtk_jpeg_enc_get_file_size(void __iomem *base);
+void mtk_jpeg_enc_set_img_size(void __iomem *base, u32 width, u32 height);
+void mtk_jpeg_enc_set_blk_num(void __iomem *base, u32 enc_format, u32 width,
+			      u32 height);
+void mtk_jpeg_enc_set_stride(void __iomem *base, u32 enc_format, u32 width,
+			     u32 bytesperline);
+
+void mtk_jpeg_enc_set_src_addr(void __iomem *base, dma_addr_t src_addr,
+			       u32 plane_index);
+void mtk_jpeg_enc_set_dst_addr(void __iomem *base, dma_addr_t dst_addr,
+			       u32 stall_size, u32 init_offset,
+			       u32 offset_mask);
+void mtk_jpeg_enc_set_config(void __iomem *base, u8 jpeg_mode, u32 enc_format,
+			     bool exif_en, u32 quality, u32 restart_interval);
 void mtk_jpeg_enc_start(void __iomem *enc_reg_base);
-void mtk_jpeg_set_enc_src(struct mtk_jpeg_ctx *ctx,  void __iomem *base,
-			  struct vb2_buffer *src_buf);
-void mtk_jpeg_set_enc_dst(struct mtk_jpeg_ctx *ctx, void __iomem *base,
-			  struct vb2_buffer *dst_buf);
-void mtk_jpeg_set_enc_params(struct mtk_jpeg_ctx *ctx,  void __iomem *base);
+void mtk_jpeg_enc_set_low_latency_mode(void __iomem *base, u32 srl_id);
+void mtk_jpeg_enc_set_source_ready_line(void __iomem *base, u32 srl_id,
+					u32 srl);
+void mtk_jpeg_enc_clear_source_ready_line(void __iomem *base, u32 srl_id);
 
 #endif /* _MTK_JPEG_ENC_HW_H */

@@ -169,7 +169,7 @@ EXPORT_SYMBOL(mmc_retune_release);
 int mmc_retune(struct mmc_host *host)
 {
 	bool return_to_hs400 = false;
-	int err;
+	int err = 0;
 
 	if (host->retune_now)
 		host->retune_now = 0;
@@ -184,6 +184,15 @@ int mmc_retune(struct mmc_host *host)
 	host->doing_retune = 1;
 
 	if (host->ios.timing == MMC_TIMING_MMC_HS400) {
+		if (host->ios.enhanced_strobe) {
+			if (host->ops->execute_hs400_tuning) {
+				mmc_retune_disable(host);
+				err = host->ops->execute_hs400_tuning(host, host->card);
+				mmc_retune_enable(host);
+			}
+			goto out;
+		}
+
 		err = mmc_hs400_to_hs200(host->card);
 		if (err)
 			goto out;
@@ -353,6 +362,8 @@ int mmc_of_parse(struct mmc_host *host)
 		host->caps2 |= MMC_CAP2_NO_SD;
 	if (device_property_read_bool(dev, "no-mmc"))
 		host->caps2 |= MMC_CAP2_NO_MMC;
+	if (device_property_read_bool(dev, "cap-sdio-async-int"))
+		host->caps2 |= MMC_CAP2_SDIO_ASYNC_INT;
 
 	/* Must be after "non-removable" check */
 	if (device_property_read_u32(dev, "fixed-emmc-driver-type", &drv_type) == 0) {
@@ -487,6 +498,10 @@ struct mmc_host *mmc_alloc_host(int extra, struct device *dev)
 		return NULL;
 	}
 
+#if IS_ENABLED(CONFIG_AMAZON_METRICS_LOG)
+	INIT_DELAYED_WORK(&host->metrics_delay_work,
+				mmc_host_metrics_work);
+#endif /* #if IS_ENABLED(CONFIG_AMAZON_METRICS_LOG) */
 	spin_lock_init(&host->lock);
 	init_waitqueue_head(&host->wq);
 	INIT_DELAYED_WORK(&host->detect, mmc_rescan);

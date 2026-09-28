@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Driver locate under i2c-hid/
+#
+# To include this Kconfig, add
+# ...
+# source drivers/hid/i2c-hid/i2c_hid_of_nvt_ts/Kconfig
+# ...
+# in i2c-hid/Kconfig
+#
+# and add CONFIG_I2C_HID_OF_NVT_TS=y in your defconfig
+
+config I2C_HID_OF_NVT_TS
+	tristate "Driver for Novatek hid-i2c based devices on OF systems"
+	default n
+	depends on I2C_HID && INPUT && OF && STYLUS_BATTERY_ALGO
+	help
+	  Say Y here if you use NVT touchscreen IC which supports i2c-hid
+	  protocol. This driver supports Open Firmware (Device Tree)-based
+	  systems.
+
+	  If unsure, say N.
+
+config I2C_HID_OF_NVT_TS_SELFTEST
+	tristate "Driver for Novatek selftest"
+	default n
+	depends on I2C_HID_OF_NVT_TS
+	help
+	  Say Y to enable driver using csv file for selftest.
+
+	  If unsure, say N.

@@ -1,0 +1,14 @@
+#
+# Ilitek ILI9882 touchscreen driver configuration
+#
+
+config TOUCHSCREEN_ILI9882
+	tristate "ILI9882 ILITEK"
+	default n
+	help
+	  Say Y here if you have ILI9882 touch panel.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called.

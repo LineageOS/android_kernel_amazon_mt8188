@@ -163,17 +163,23 @@ out:
 	return w;
 }
 
-static void wq_sleep(struct optee_wait_queue *wq, u32 key)
+static unsigned long wq_sleep_timeout(struct optee_wait_queue *wq, u32 key,
+								u32 timeout)
 {
 	struct wq_entry *w = wq_entry_get(wq, key);
+	unsigned long rmt = 1;
 
 	if (w) {
-		wait_for_completion(&w->c);
+		if (timeout != 0)
+			rmt = wait_for_completion_timeout(&w->c, timeout);
+		else
+			wait_for_completion(&w->c);
 		mutex_lock(&wq->mu);
 		list_del(&w->link);
 		mutex_unlock(&wq->mu);
 		kfree(w);
 	}
+	return rmt;
 }
 
 static void wq_wakeup(struct optee_wait_queue *wq, u32 key)
@@ -187,6 +193,8 @@ static void wq_wakeup(struct optee_wait_queue *wq, u32 key)
 static void handle_rpc_func_cmd_wq(struct optee *optee,
 				   struct optee_msg_arg *arg)
 {
+	unsigned long rmt = 1;
+
 	if (arg->num_params != 1)
 		goto bad;
 
@@ -196,7 +204,9 @@ static void handle_rpc_func_cmd_wq(struct optee *optee,
 
 	switch (arg->params[0].u.value.a) {
 	case OPTEE_MSG_RPC_WAIT_QUEUE_SLEEP:
-		wq_sleep(&optee->wait_queue, arg->params[0].u.value.b);
+		rmt = wq_sleep_timeout(&optee->wait_queue,
+					arg->params[0].u.value.b,
+					arg->params[0].u.value.c);
 		break;
 	case OPTEE_MSG_RPC_WAIT_QUEUE_WAKEUP:
 		wq_wakeup(&optee->wait_queue, arg->params[0].u.value.b);
@@ -205,7 +215,11 @@ static void handle_rpc_func_cmd_wq(struct optee *optee,
 		goto bad;
 	}
 
-	arg->ret = TEEC_SUCCESS;
+	/* time-out for sleep func */
+	if (rmt == 0)
+		arg->ret = TEEC_ERROR_BUSY;
+	else
+		arg->ret = TEEC_SUCCESS;
 	return;
 bad:
 	arg->ret = TEEC_ERROR_BAD_PARAMETERS;
@@ -477,6 +491,16 @@ static void handle_rpc_func_cmd(struct tee_context *ctx, struct optee *optee,
 	case OPTEE_MSG_RPC_CMD_SHM_FREE:
 		handle_rpc_func_cmd_shm_free(ctx, arg);
 		break;
+#if IS_ENABLED(CONFIG_OPTEE_REE_CONSOLE)
+	case OPTEE_MSG_RPC_CMD_KREE_CONSOLE_FLUSH:
+		handle_rpc_func_kree_console_flush();
+		break;
+#endif
+#if IS_ENABLED(CONFIG_OPTEE_REE_CLK_CTRL)
+	case OPTEE_MSG_RPC_CMD_KREE_CLK_CTRL:
+		handle_rpc_func_kree_clock_control(arg);
+		break;
+#endif
 	case OPTEE_MSG_RPC_CMD_I2C_TRANSFER:
 		handle_rpc_func_cmd_i2c_transfer(ctx, arg);
 		break;

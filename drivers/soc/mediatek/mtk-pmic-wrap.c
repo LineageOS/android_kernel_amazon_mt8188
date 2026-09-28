@@ -24,11 +24,13 @@
 #define PWRAP_MT8135_BRIDGE_WDT_SRC_EN		0x54
 
 /* macro for wrapper status */
+#define PWRAP_GET_SWINF_2_FSM(x)	(((x) >> 1) & 0x00000007)
 #define PWRAP_GET_WACS_RDATA(x)		(((x) >> 0) & 0x0000ffff)
 #define PWRAP_GET_WACS_FSM(x)		(((x) >> 16) & 0x00000007)
 #define PWRAP_GET_WACS_REQ(x)		(((x) >> 19) & 0x00000001)
 #define PWRAP_STATE_SYNC_IDLE0		(1 << 20)
 #define PWRAP_STATE_INIT_DONE0		(1 << 21)
+#define PWRAP_STATE_INIT_DONE1		(1 << 15)
 
 /* macro for WACS FSM */
 #define PWRAP_WACS_FSM_IDLE		0x00
@@ -74,6 +76,7 @@
 #define PWRAP_CAP_DCM		BIT(2)
 #define PWRAP_CAP_INT1_EN	BIT(3)
 #define PWRAP_CAP_WDT_SRC1	BIT(4)
+#define PWRAP_CAP_ARB		BIT(5)
 
 /* defines for slave device wrapper registers */
 enum dew_regs {
@@ -110,28 +113,6 @@ enum dew_regs {
 	PWRAP_RG_SPI_CON8,
 	PWRAP_RG_SPI_CON13,
 	PWRAP_SPISLV_KEY,
-
-	/* MT6359 only regs */
-	PWRAP_DEW_CRC_SWRST,
-	PWRAP_DEW_RG_EN_RECORD,
-	PWRAP_DEW_RECORD_CMD0,
-	PWRAP_DEW_RECORD_CMD1,
-	PWRAP_DEW_RECORD_CMD2,
-	PWRAP_DEW_RECORD_CMD3,
-	PWRAP_DEW_RECORD_CMD4,
-	PWRAP_DEW_RECORD_CMD5,
-	PWRAP_DEW_RECORD_WDATA0,
-	PWRAP_DEW_RECORD_WDATA1,
-	PWRAP_DEW_RECORD_WDATA2,
-	PWRAP_DEW_RECORD_WDATA3,
-	PWRAP_DEW_RECORD_WDATA4,
-	PWRAP_DEW_RECORD_WDATA5,
-	PWRAP_DEW_RG_ADDR_TARGET,
-	PWRAP_DEW_RG_ADDR_MASK,
-	PWRAP_DEW_RG_WDATA_TARGET,
-	PWRAP_DEW_RG_WDATA_MASK,
-	PWRAP_DEW_RG_SPI_RECORD_CLR,
-	PWRAP_DEW_RG_CMD_ALERT_CLR,
 
 	/* MT6397 only regs */
 	PWRAP_DEW_EVENT_OUT_EN,
@@ -220,11 +201,9 @@ static const u32 mt6358_regs[] = {
 };
 
 static const u32 mt6359_regs[] = {
-	[PWRAP_DEW_RG_EN_RECORD] =	0x040a,
 	[PWRAP_DEW_DIO_EN] =		0x040c,
 	[PWRAP_DEW_READ_TEST] =		0x040e,
 	[PWRAP_DEW_WRITE_TEST] =	0x0410,
-	[PWRAP_DEW_CRC_SWRST] =		0x0412,
 	[PWRAP_DEW_CRC_EN] =		0x0414,
 	[PWRAP_DEW_CRC_VAL] =		0x0416,
 	[PWRAP_DEW_CIPHER_KEY_SEL] =	0x0418,
@@ -234,25 +213,6 @@ static const u32 mt6359_regs[] = {
 	[PWRAP_DEW_CIPHER_MODE] =	0x0420,
 	[PWRAP_DEW_CIPHER_SWRST] =	0x0422,
 	[PWRAP_DEW_RDDMY_NO] =		0x0424,
-	[PWRAP_DEW_RECORD_CMD0] =	0x0428,
-	[PWRAP_DEW_RECORD_CMD1] =	0x042a,
-	[PWRAP_DEW_RECORD_CMD2] =	0x042c,
-	[PWRAP_DEW_RECORD_CMD3] =	0x042e,
-	[PWRAP_DEW_RECORD_CMD4] =	0x0430,
-	[PWRAP_DEW_RECORD_CMD5] =	0x0432,
-	[PWRAP_DEW_RECORD_WDATA0] =	0x0434,
-	[PWRAP_DEW_RECORD_WDATA1] =	0x0436,
-	[PWRAP_DEW_RECORD_WDATA2] =	0x0438,
-	[PWRAP_DEW_RECORD_WDATA3] =	0x043a,
-	[PWRAP_DEW_RECORD_WDATA4] =	0x043c,
-	[PWRAP_DEW_RECORD_WDATA5] =	0x043e,
-	[PWRAP_DEW_RG_ADDR_TARGET] =	0x0440,
-	[PWRAP_DEW_RG_ADDR_MASK] =	0x0442,
-	[PWRAP_DEW_RG_WDATA_TARGET] =	0x0444,
-	[PWRAP_DEW_RG_WDATA_MASK] =	0x0446,
-	[PWRAP_DEW_RG_SPI_RECORD_CLR] =	0x0448,
-	[PWRAP_DEW_RG_CMD_ALERT_CLR] =	0x0448,
-	[PWRAP_SPISLV_KEY] =		0x044a,
 };
 
 static const u32 mt6397_regs[] = {
@@ -348,6 +308,10 @@ enum pwrap_regs {
 	PWRAP_ADC_RDATA_ADDR1,
 	PWRAP_ADC_RDATA_ADDR2,
 
+	/* MT6873 only regs */
+	PWRAP_SWINF_2_WDATA_31_0,
+	PWRAP_SWINF_2_RDATA_31_0,
+
 	/* MT7622 only regs */
 	PWRAP_STA,
 	PWRAP_CLR,
@@ -435,6 +399,24 @@ enum pwrap_regs {
 	/* MT8516 only regs */
 	PWRAP_OP_TYPE,
 	PWRAP_MSB_FIRST,
+
+	/* debug regs */
+	PWRAP_INF_BUSY_STA,
+	PWRAP_OTHER_BUSY_STA_0,
+	PWRAP_OTHER_BUSY_STA_1,
+	PWRAP_REQCTRL_STA_0,
+	PWRAP_REQCTRL_STA_1,
+	PWRAP_REQCTRL_STA_2,
+	PWRAP_REQCTRL_STA_3,
+	PWRAP_REQCTRL_STA_4,
+	PWRAP_REQCTRL_STA_8,
+	PWRAP_ARBITER_STA_0,
+	PWRAP_ARBITER_STA_1,
+	PWRAP_ARBITER_STA_5,
+	PWRAP_CMDISSUE_STA_0,
+	PWRAP_CMDISSUE_STA_1,
+	PWRAP_CMDISSUE_STA_2,
+	PWRAP_SWINF_2_STA,
 };
 
 static int mt2701_regs[] = {
@@ -625,6 +607,39 @@ static int mt6797_regs[] = {
 	[PWRAP_WDT_SRC_EN] =		0x100,
 	[PWRAP_DCM_EN] =		0x1CC,
 	[PWRAP_DCM_DBC_PRD] =		0x1D4,
+};
+
+static int mt6853_regs[] = {
+	[PWRAP_INIT_DONE2] =		0x0,
+	[PWRAP_TIMER_EN] =		0x3E4,
+	[PWRAP_INT_EN] =		0x450,
+	[PWRAP_WACS2_CMD] =		0xC80,
+	[PWRAP_SWINF_2_WDATA_31_0] =	0xC84,
+	[PWRAP_SWINF_2_RDATA_31_0] =	0xC94,
+	[PWRAP_WACS2_VLDCLR] =		0xCA4,
+	[PWRAP_WACS2_RDATA] =		0xCA8,
+};
+
+static int mt6873_regs[] = {
+	[PWRAP_INIT_DONE2] =		0x0,
+	[PWRAP_TIMER_EN] =		0x3E0,
+	[PWRAP_INT_EN] =		0x448,
+	[PWRAP_WACS2_CMD] =		0xC80,
+	[PWRAP_SWINF_2_WDATA_31_0] =	0xC84,
+	[PWRAP_SWINF_2_RDATA_31_0] =	0xC94,
+	[PWRAP_WACS2_VLDCLR] =		0xCA4,
+	[PWRAP_WACS2_RDATA] =		0xCA8,
+};
+
+static int mt6885_regs[] = {
+	[PWRAP_INIT_DONE2] =		0x0,
+	[PWRAP_TIMER_EN] =		0x3E0,
+	[PWRAP_INT_EN] =		0x448,
+	[PWRAP_WACS2_CMD] =		0xC80,
+	[PWRAP_SWINF_2_WDATA_31_0] =	0xC84,
+	[PWRAP_SWINF_2_RDATA_31_0] =	0xC94,
+	[PWRAP_WACS2_VLDCLR] =		0xCA4,
+	[PWRAP_WACS2_RDATA] =		0xCA8,
 };
 
 static int mt7622_regs[] = {
@@ -945,6 +960,56 @@ static int mt8183_regs[] = {
 	[PWRAP_WACS2_VLDCLR] =			0xC28,
 };
 
+static int mt8188_regs[] = {
+	[PWRAP_INIT_DONE2] =		0x0,
+	[PWRAP_STAUPD_CTRL] =		0x4C,
+	[PWRAP_TIMER_EN] =		0x3E4,
+	[PWRAP_INT_EN] =		0x420,
+	[PWRAP_INT_FLG] =		0x428,
+	[PWRAP_INT_CLR] =		0x42C,
+	[PWRAP_INT1_EN] =		0x450,
+	[PWRAP_INT1_FLG] =		0x458,
+	[PWRAP_INT1_CLR] =		0x45C,
+	[PWRAP_WACS2_CMD] =		0x880,
+	[PWRAP_SWINF_2_WDATA_31_0] =	0x884,
+	[PWRAP_SWINF_2_RDATA_31_0] =	0x894,
+	[PWRAP_WACS2_VLDCLR] =		0x8A4,
+	[PWRAP_WACS2_RDATA] =		0x8A8,
+	[PWRAP_INF_BUSY_STA] =		0x18,
+	[PWRAP_OTHER_BUSY_STA_0] =	0x1C,
+	[PWRAP_OTHER_BUSY_STA_1] =	0x20,
+	[PWRAP_REQCTRL_STA_0] =		0x12C,
+	[PWRAP_REQCTRL_STA_1] =		0x130,
+	[PWRAP_REQCTRL_STA_2] =		0x134,
+	[PWRAP_REQCTRL_STA_3] =		0x138,
+	[PWRAP_REQCTRL_STA_4] =		0x13C,
+	[PWRAP_REQCTRL_STA_8] =		0x14C,
+	[PWRAP_ARBITER_STA_0] =		0x374,
+	[PWRAP_ARBITER_STA_1] =		0x378,
+	[PWRAP_ARBITER_STA_5] =		0x388,
+	[PWRAP_CMDISSUE_STA_0] =	0x3BC,
+	[PWRAP_CMDISSUE_STA_1] =	0x3C0,
+	[PWRAP_CMDISSUE_STA_2] =	0x3C4,
+	[PWRAP_SWINF_2_STA] =		0x8A8,
+};
+
+static int mt8195_regs[] = {
+	[PWRAP_INIT_DONE2] =		0x0,
+	[PWRAP_STAUPD_CTRL] =		0x4C,
+	[PWRAP_TIMER_EN] =		0x3E4,
+	[PWRAP_INT_EN] =		0x420,
+	[PWRAP_INT_FLG] =		0x428,
+	[PWRAP_INT_CLR] =		0x42C,
+	[PWRAP_INT1_EN] =		0x450,
+	[PWRAP_INT1_FLG] =		0x458,
+	[PWRAP_INT1_CLR] =		0x45C,
+	[PWRAP_WACS2_CMD] =		0x880,
+	[PWRAP_SWINF_2_WDATA_31_0] =	0x884,
+	[PWRAP_SWINF_2_RDATA_31_0] =	0x894,
+	[PWRAP_WACS2_VLDCLR] =		0x8A4,
+	[PWRAP_WACS2_RDATA] =		0x8A8,
+};
+
 static int mt8516_regs[] = {
 	[PWRAP_MUX_SEL] =		0x0,
 	[PWRAP_WRAP_EN] =		0x4,
@@ -1045,10 +1110,15 @@ enum pwrap_type {
 	PWRAP_MT6765,
 	PWRAP_MT6779,
 	PWRAP_MT6797,
+	PWRAP_MT6853,
+	PWRAP_MT6873,
+	PWRAP_MT6885,
 	PWRAP_MT7622,
 	PWRAP_MT8135,
 	PWRAP_MT8173,
 	PWRAP_MT8183,
+	PWRAP_MT8188,
+	PWRAP_MT8195,
 	PWRAP_MT8516,
 };
 
@@ -1106,18 +1176,81 @@ static void pwrap_writel(struct pmic_wrapper *wrp, u32 val, enum pwrap_regs reg)
 	writel(val, wrp->base + wrp->master->regs[reg]);
 }
 
+static void pwrap_swinf_info(struct pmic_wrapper *wrp)
+{
+	static DEFINE_RATELIMIT_STATE(ratelimit, 1 * HZ, 5);
+
+	if (__ratelimit(&ratelimit)) {
+		dev_err(wrp->dev, "Dump SWINF Info\n");
+		dev_err(wrp->dev, "PWRAP_WACS2_CMD=0x%x\n",
+			pwrap_readl(wrp, PWRAP_WACS2_CMD));
+		dev_err(wrp->dev, "PWRAP_SWINF_2_WDATA_31_0=0x%x\n",
+			pwrap_readl(wrp, PWRAP_SWINF_2_WDATA_31_0));
+		dev_err(wrp->dev, "PWRAP_SWINF_2_RDATA_31_0=0x%x\n",
+			pwrap_readl(wrp, PWRAP_SWINF_2_RDATA_31_0));
+		dev_err(wrp->dev, "PWRAP_WACS2_RDATA=0x%x\n",
+			pwrap_readl(wrp, PWRAP_WACS2_RDATA));
+		dev_err(wrp->dev, "INF_BUSY_STA: 0x%x\n",
+			pwrap_readl(wrp, PWRAP_INF_BUSY_STA));
+		dev_err(wrp->dev, "OTHER_BUSY_STA_0: 0x%x\n",
+			pwrap_readl(wrp, PWRAP_OTHER_BUSY_STA_0));
+		dev_err(wrp->dev, "OTHER_BUSY_STA_1: 0x%x\n",
+			pwrap_readl(wrp, PWRAP_OTHER_BUSY_STA_1));
+		dev_err(wrp->dev, "REQCTRL_STA_0: 0x%x\n",
+			pwrap_readl(wrp, PWRAP_REQCTRL_STA_0));
+		dev_err(wrp->dev, "REQCTRL_STA_1: 0x%x\n",
+			pwrap_readl(wrp, PWRAP_REQCTRL_STA_1));
+		dev_err(wrp->dev, "REQCTRL_STA_2: 0x%x\n",
+			pwrap_readl(wrp, PWRAP_REQCTRL_STA_2));
+		dev_err(wrp->dev, "REQCTRL_STA_3: 0x%x\n",
+			pwrap_readl(wrp, PWRAP_REQCTRL_STA_3));
+		dev_err(wrp->dev, "REQCTRL_STA_4: 0x%x\n",
+			pwrap_readl(wrp, PWRAP_REQCTRL_STA_4));
+		dev_err(wrp->dev, "REQCTRL_STA_8: 0x%x\n",
+			pwrap_readl(wrp, PWRAP_REQCTRL_STA_8));
+		dev_err(wrp->dev, "ARBITER_STA_0: 0x%x\n",
+			pwrap_readl(wrp, PWRAP_ARBITER_STA_0));
+		dev_err(wrp->dev, "ARBITER_STA_1: 0x%x\n",
+			pwrap_readl(wrp, PWRAP_ARBITER_STA_1));
+		dev_err(wrp->dev, "ARBITER_STA_5: 0x%x\n",
+			pwrap_readl(wrp, PWRAP_ARBITER_STA_5));
+		dev_err(wrp->dev, "CMDISSUE_STA_0: 0x%x\n",
+			pwrap_readl(wrp, PWRAP_CMDISSUE_STA_0));
+		dev_err(wrp->dev, "CMDISSUE_STA_1: 0x%x\n",
+			pwrap_readl(wrp, PWRAP_CMDISSUE_STA_1));
+		dev_err(wrp->dev, "CMDISSUE_STA_2: 0x%x\n",
+			pwrap_readl(wrp, PWRAP_CMDISSUE_STA_2));
+		dev_err(wrp->dev, "SWINF_2_STA: 0x%x\n",
+			pwrap_readl(wrp, PWRAP_SWINF_2_STA));
+	}
+}
+
 static bool pwrap_is_fsm_idle(struct pmic_wrapper *wrp)
 {
-	u32 val = pwrap_readl(wrp, PWRAP_WACS2_RDATA);
+	u32 val;
+	int ret;
 
-	return PWRAP_GET_WACS_FSM(val) == PWRAP_WACS_FSM_IDLE;
+	val = pwrap_readl(wrp, PWRAP_WACS2_RDATA);
+	if (HAS_CAP(wrp->master->caps, PWRAP_CAP_ARB))
+		ret = (PWRAP_GET_SWINF_2_FSM(val) == PWRAP_WACS_FSM_IDLE);
+	else
+		ret = (PWRAP_GET_WACS_FSM(val) == PWRAP_WACS_FSM_IDLE);
+
+	return ret;
 }
 
 static bool pwrap_is_fsm_vldclr(struct pmic_wrapper *wrp)
 {
-	u32 val = pwrap_readl(wrp, PWRAP_WACS2_RDATA);
+	u32 val;
+	int ret;
 
-	return PWRAP_GET_WACS_FSM(val) == PWRAP_WACS_FSM_WFVLDCLR;
+	val = pwrap_readl(wrp, PWRAP_WACS2_RDATA);
+	if (HAS_CAP(wrp->master->caps, PWRAP_CAP_ARB))
+		ret = (PWRAP_GET_SWINF_2_FSM(val) == PWRAP_WACS_FSM_WFVLDCLR);
+	else
+		ret = (PWRAP_GET_WACS_FSM(val) == PWRAP_WACS_FSM_WFVLDCLR);
+
+	return ret;
 }
 
 /*
@@ -1155,8 +1288,14 @@ static int pwrap_wait_for_state(struct pmic_wrapper *wrp,
 	timeout = jiffies + usecs_to_jiffies(10000);
 
 	do {
-		if (time_after(jiffies, timeout))
+		if (time_after(jiffies, timeout)) {
+			if (fp(wrp) == 0) {
+				dev_err(wrp->dev, "[PWRAP] FSM Timeout\n");
+				if (HAS_CAP(wrp->master->caps, PWRAP_CAP_ARB))
+					pwrap_swinf_info(wrp);
+			}
 			return fp(wrp) ? 0 : -ETIMEDOUT;
+		}
 		if (fp(wrp))
 			return 0;
 	} while (1);
@@ -1172,13 +1311,22 @@ static int pwrap_read16(struct pmic_wrapper *wrp, u32 adr, u32 *rdata)
 		return ret;
 	}
 
-	pwrap_writel(wrp, (adr >> 1) << 16, PWRAP_WACS2_CMD);
+	if (HAS_CAP(wrp->master->caps, PWRAP_CAP_ARB))
+		pwrap_writel(wrp, adr, PWRAP_WACS2_CMD);
+	else
+		pwrap_writel(wrp, (adr >> 1) << 16, PWRAP_WACS2_CMD);
+
 
 	ret = pwrap_wait_for_state(wrp, pwrap_is_fsm_vldclr);
 	if (ret)
 		return ret;
 
-	*rdata = PWRAP_GET_WACS_RDATA(pwrap_readl(wrp, PWRAP_WACS2_RDATA));
+	if (HAS_CAP(wrp->master->caps, PWRAP_CAP_ARB))
+		*rdata = PWRAP_GET_WACS_RDATA(pwrap_readl(wrp,
+					      PWRAP_SWINF_2_RDATA_31_0));
+	else
+		*rdata = PWRAP_GET_WACS_RDATA(pwrap_readl(wrp,
+					      PWRAP_WACS2_RDATA));
 
 	pwrap_writel(wrp, 1, PWRAP_WACS2_VLDCLR);
 
@@ -1228,8 +1376,13 @@ static int pwrap_write16(struct pmic_wrapper *wrp, u32 adr, u32 wdata)
 		return ret;
 	}
 
-	pwrap_writel(wrp, (1 << 31) | ((adr >> 1) << 16) | wdata,
-		     PWRAP_WACS2_CMD);
+	if (HAS_CAP(wrp->master->caps, PWRAP_CAP_ARB)) {
+		pwrap_writel(wrp, wdata, PWRAP_SWINF_2_WDATA_31_0);
+		pwrap_writel(wrp, (1 << 29) | adr, PWRAP_WACS2_CMD);
+	} else {
+		pwrap_writel(wrp, (1 << 31) | ((adr >> 1) << 16) | wdata,
+			     PWRAP_WACS2_CMD);
+	}
 
 	return 0;
 }
@@ -1319,7 +1472,7 @@ static int pwrap_reset_spislave(struct pmic_wrapper *wrp)
  */
 static int pwrap_init_sidly(struct pmic_wrapper *wrp)
 {
-	u32 rdata;
+	u32 rdata = 0;
 	u32 i;
 	u32 pass = 0;
 	signed char dly[16] = {
@@ -1350,7 +1503,7 @@ static int pwrap_init_sidly(struct pmic_wrapper *wrp)
 static int pwrap_init_dual_io(struct pmic_wrapper *wrp)
 {
 	int ret;
-	u32 rdata;
+	u32 rdata = 0;
 
 	/* Enable dual IO mode */
 	pwrap_write(wrp, wrp->slave->dew_regs[PWRAP_DEW_DIO_EN], 1);
@@ -1448,7 +1601,7 @@ static bool pwrap_is_cipher_ready(struct pmic_wrapper *wrp)
 
 static bool pwrap_is_pmic_cipher_ready(struct pmic_wrapper *wrp)
 {
-	u32 rdata;
+	u32 rdata = 0;
 	int ret;
 
 	ret = pwrap_read(wrp, wrp->slave->dew_regs[PWRAP_DEW_CIPHER_RDY],
@@ -1485,7 +1638,12 @@ static int pwrap_init_cipher(struct pmic_wrapper *wrp)
 	case PWRAP_MT7622:
 		pwrap_writel(wrp, 0, PWRAP_CIPHER_EN);
 		break;
+	case PWRAP_MT6853:
+	case PWRAP_MT6873:
+	case PWRAP_MT6885:
 	case PWRAP_MT8183:
+	case PWRAP_MT8188:
+	case PWRAP_MT8195:
 		break;
 	}
 
@@ -1815,7 +1973,7 @@ static const struct pwrap_slv_type pmic_mt6359 = {
 	.dew_regs = mt6359_regs,
 	.type = PMIC_MT6359,
 	.regmap = &pwrap_regmap_config16,
-	.caps = PWRAP_SLV_CAP_DUALIO,
+	.caps = 0,
 	.pwrap_read = pwrap_read16,
 	.pwrap_write = pwrap_write16,
 };
@@ -1921,6 +2079,45 @@ static const struct pmic_wrapper_type pwrap_mt6797 = {
 	.init_soc_specific = NULL,
 };
 
+static struct pmic_wrapper_type pwrap_mt6853 = {
+	.regs = mt6853_regs,
+	.type = PWRAP_MT6853,
+	.arb_en_all = 0x777f,
+	.int_en_all = 0x180000,
+	.int1_en_all = 0,
+	.spi_w = PWRAP_MAN_CMD_SPI_WRITE,
+	.wdt_src = PWRAP_WDT_SRC_MASK_ALL,
+	.caps = PWRAP_CAP_ARB,
+	.init_reg_clock = pwrap_common_init_reg_clock,
+	.init_soc_specific = NULL,
+};
+
+static struct pmic_wrapper_type pwrap_mt6873 = {
+	.regs = mt6873_regs,
+	.type = PWRAP_MT6873,
+	.arb_en_all = 0x777f,
+	.int_en_all = BIT(4) | BIT(5),
+	.int1_en_all = 0,
+	.spi_w = PWRAP_MAN_CMD_SPI_WRITE,
+	.wdt_src = PWRAP_WDT_SRC_MASK_ALL,
+	.caps = PWRAP_CAP_ARB,
+	.init_reg_clock = pwrap_common_init_reg_clock,
+	.init_soc_specific = NULL,
+};
+
+static struct pmic_wrapper_type pwrap_mt6885 = {
+	.regs = mt6885_regs,
+	.type = PWRAP_MT6885,
+	.arb_en_all = 0x777f,
+	.int_en_all = BIT(4) | BIT(5),
+	.int1_en_all = 0,
+	.spi_w = PWRAP_MAN_CMD_SPI_WRITE,
+	.wdt_src = PWRAP_WDT_SRC_MASK_ALL,
+	.caps = PWRAP_CAP_ARB,
+	.init_reg_clock = pwrap_common_init_reg_clock,
+	.init_soc_specific = NULL,
+};
+
 static const struct pmic_wrapper_type pwrap_mt7622 = {
 	.regs = mt7622_regs,
 	.type = PWRAP_MT7622,
@@ -1973,6 +2170,32 @@ static const struct pmic_wrapper_type pwrap_mt8183 = {
 	.init_soc_specific = pwrap_mt8183_init_soc_specific,
 };
 
+static struct pmic_wrapper_type pwrap_mt8188 = {
+	.regs = mt8188_regs,
+	.type = PWRAP_MT8188,
+	.arb_en_all = 0x777f, /* NEED CONFIRM */
+	.int_en_all = 0x180000, /* NEED CONFIRM */
+	.int1_en_all = 0,
+	.spi_w = PWRAP_MAN_CMD_SPI_WRITE,
+	.wdt_src = PWRAP_WDT_SRC_MASK_ALL,
+	.caps = PWRAP_CAP_INT1_EN | PWRAP_CAP_ARB,
+	.init_reg_clock = pwrap_common_init_reg_clock,
+	.init_soc_specific = NULL,
+};
+
+static struct pmic_wrapper_type pwrap_mt8195 = {
+	.regs = mt8195_regs,
+	.type = PWRAP_MT8195,
+	.arb_en_all = 0x777f,
+	.int_en_all = 0x180000,
+	.int1_en_all = 0,
+	.spi_w = PWRAP_MAN_CMD_SPI_WRITE,
+	.wdt_src = PWRAP_WDT_SRC_MASK_ALL,
+	.caps = PWRAP_CAP_INT1_EN | PWRAP_CAP_ARB,
+	.init_reg_clock = pwrap_common_init_reg_clock,
+	.init_soc_specific = NULL,
+};
+
 static struct pmic_wrapper_type pwrap_mt8516 = {
 	.regs = mt8516_regs,
 	.type = PWRAP_MT8516,
@@ -1999,6 +2222,15 @@ static const struct of_device_id of_pwrap_match_tbl[] = {
 		.compatible = "mediatek,mt6797-pwrap",
 		.data = &pwrap_mt6797,
 	}, {
+		.compatible = "mediatek,mt6853-pwrap",
+		.data = &pwrap_mt6853,
+	}, {
+		.compatible = "mediatek,mt6873-pwrap",
+		.data = &pwrap_mt6873,
+	}, {
+		.compatible = "mediatek,mt6885-pwrap",
+		.data = &pwrap_mt6885,
+	}, {
 		.compatible = "mediatek,mt7622-pwrap",
 		.data = &pwrap_mt7622,
 	}, {
@@ -2011,6 +2243,12 @@ static const struct of_device_id of_pwrap_match_tbl[] = {
 		.compatible = "mediatek,mt8183-pwrap",
 		.data = &pwrap_mt8183,
 	}, {
+		.compatible = "mediatek,mt8188-pwrap",
+		.data = &pwrap_mt8188,
+	}, {
+		.compatible = "mediatek,mt8195-pwrap",
+		.data = &pwrap_mt8195,
+	}, {
 		.compatible = "mediatek,mt8516-pwrap",
 		.data = &pwrap_mt8516,
 	}, {
@@ -2022,6 +2260,7 @@ MODULE_DEVICE_TABLE(of, of_pwrap_match_tbl);
 static int pwrap_probe(struct platform_device *pdev)
 {
 	int ret, irq;
+	u32 rdata;
 	struct pmic_wrapper *wrp;
 	struct device_node *np = pdev->dev.of_node;
 	const struct of_device_id *of_slave_id = NULL;
@@ -2116,14 +2355,22 @@ static int pwrap_probe(struct platform_device *pdev)
 		}
 	}
 
-	if (!(pwrap_readl(wrp, PWRAP_WACS2_RDATA) & PWRAP_STATE_INIT_DONE0)) {
+	if (!HAS_CAP(wrp->master->caps, PWRAP_CAP_ARB))
+		rdata = pwrap_readl(wrp, PWRAP_WACS2_RDATA) &
+				    PWRAP_STATE_INIT_DONE0;
+	else
+		rdata = pwrap_readl(wrp, PWRAP_WACS2_RDATA) &
+				    PWRAP_STATE_INIT_DONE1;
+	if (!rdata) {
 		dev_dbg(wrp->dev, "initialization isn't finished\n");
 		ret = -ENODEV;
 		goto err_out2;
 	}
 
 	/* Initialize watchdog, may not be done by the bootloader */
-	pwrap_writel(wrp, 0xf, PWRAP_WDT_UNIT);
+	if (!(HAS_CAP(wrp->master->caps, PWRAP_CAP_ARB)))
+		pwrap_writel(wrp, 0xf, PWRAP_WDT_UNIT);
+
 	/*
 	 * Since STAUPD was not used on mt8173 platform,
 	 * so STAUPD of WDT_SRC which should be turned off
@@ -2132,7 +2379,11 @@ static int pwrap_probe(struct platform_device *pdev)
 	if (HAS_CAP(wrp->master->caps, PWRAP_CAP_WDT_SRC1))
 		pwrap_writel(wrp, wrp->master->wdt_src, PWRAP_WDT_SRC_EN_1);
 
-	pwrap_writel(wrp, 0x1, PWRAP_TIMER_EN);
+	if (HAS_CAP(wrp->master->caps, PWRAP_CAP_ARB))
+		pwrap_writel(wrp, 0x3, PWRAP_TIMER_EN);
+	else
+		pwrap_writel(wrp, 0x1, PWRAP_TIMER_EN);
+
 	pwrap_writel(wrp, wrp->master->int_en_all, PWRAP_INT_EN);
 	/*
 	 * We add INT1 interrupt to handle starvation and request exception

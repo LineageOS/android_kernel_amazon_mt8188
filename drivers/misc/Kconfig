@@ -423,6 +423,26 @@ config SRAM
 config SRAM_EXEC
 	bool
 
+config MDUMP
+	bool "Generic memory dump"
+	default n
+	help
+	  The module allow support mdump feature, It need bootloader support.
+	  when panic, it will do a mark,
+	  and bootloader can store all memory to analyze.
+
+	  If unsure, say N.
+
+config MDUMP_COMPRESS
+	bool "Compress memory dump"
+	default n
+	help
+	  The module supports compressed ramdump,
+	  which allows ramdump to be written to userdata partition
+	  instead of a dedicate DUMP partition.
+
+	  If unsure, say N.
+
 config PCI_ENDPOINT_TEST
 	depends on PCI
 	select CRC32
@@ -474,12 +494,41 @@ config HISI_HIKEY_USB
 	  switching between the dual-role USB-C port and the USB-A host ports
 	  using only one USB controller.
 
+config IDME
+	tristate "IDME support"
+	depends on PROC_FS
+	help
+	  Select Y here to enable IDME support to read the data
+	  via userspace (i.e. /proc/idme/* entries)
+
+config WAS4780_AUDIO_SWITCH
+	tristate "USB Type-C Analog Audio Switch"
+	depends on I2C
+	default n
+	help
+	  This driver provides support for switching between USB and headset mode.
+
+config AMAZON_METRICS_LOG
+	tristate "Amazon Metrics logger driver"
+	select RING_BUFFER
+	default n
+	help
+	   Enable Amazon Metrics/Vitals logger driver
+
+config AMAZON_MINERVA_METRICS_LOG
+	tristate "Amazon Minerva Metrics logger driver"
+	select RING_BUFFER
+	default n
+	help
+	   Enable Amazon Minerva Metrics/Vitals logger driver
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
 source "drivers/misc/ti-st/Kconfig"
 source "drivers/misc/lis3lv02d/Kconfig"
 source "drivers/misc/altera-stapl/Kconfig"
+source "drivers/misc/mediatek/Kconfig"
 source "drivers/misc/mei/Kconfig"
 source "drivers/misc/vmw_vmci/Kconfig"
 source "drivers/misc/genwqe/Kconfig"

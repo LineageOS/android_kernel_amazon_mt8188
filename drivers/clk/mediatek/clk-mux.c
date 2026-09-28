@@ -8,6 +8,7 @@
 #include <linux/of_address.h>
 #include <linux/slab.h>
 #include <linux/mfd/syscon.h>
+#include <linux/module.h>
 
 #include "clk-mtk.h"
 #include "clk-mux.h"
@@ -53,7 +54,7 @@ static void mtk_clk_mux_disable_setclr(struct clk_hw *hw)
 static int mtk_clk_mux_is_enabled(struct clk_hw *hw)
 {
 	struct mtk_clk_mux *mux = to_mtk_clk_mux(hw);
-	u32 val;
+	u32 val = 0;
 
 	regmap_read(mux->regmap, mux->data->mux_ofs, &val);
 
@@ -64,7 +65,7 @@ static u8 mtk_clk_mux_get_parent(struct clk_hw *hw)
 {
 	struct mtk_clk_mux *mux = to_mtk_clk_mux(hw);
 	u32 mask = GENMASK(mux->data->mux_width - 1, 0);
-	u32 val;
+	u32 val = 0;
 
 	regmap_read(mux->regmap, mux->data->mux_ofs, &val);
 	val = (val >> mux->data->mux_shift) & mask;
@@ -98,7 +99,7 @@ static int mtk_clk_mux_set_parent_setclr_lock(struct clk_hw *hw, u8 index)
 {
 	struct mtk_clk_mux *mux = to_mtk_clk_mux(hw);
 	u32 mask = GENMASK(mux->data->mux_width - 1, 0);
-	u32 val, orig;
+	u32 val = 0, orig = 0;
 	unsigned long flags = 0;
 
 	if (mux->lock)
@@ -133,11 +134,13 @@ const struct clk_ops mtk_mux_ops = {
 	.get_parent = mtk_clk_mux_get_parent,
 	.set_parent = mtk_clk_mux_set_parent_lock,
 };
+EXPORT_SYMBOL(mtk_mux_ops);
 
 const struct clk_ops mtk_mux_clr_set_upd_ops = {
 	.get_parent = mtk_clk_mux_get_parent,
 	.set_parent = mtk_clk_mux_set_parent_setclr_lock,
 };
+EXPORT_SYMBOL(mtk_mux_clr_set_upd_ops);
 
 const struct clk_ops mtk_mux_gate_ops = {
 	.enable = mtk_clk_mux_enable,
@@ -146,6 +149,7 @@ const struct clk_ops mtk_mux_gate_ops = {
 	.get_parent = mtk_clk_mux_get_parent,
 	.set_parent = mtk_clk_mux_set_parent_lock,
 };
+EXPORT_SYMBOL(mtk_mux_gate_ops);
 
 const struct clk_ops mtk_mux_gate_clr_set_upd_ops = {
 	.enable = mtk_clk_mux_enable_setclr,
@@ -154,6 +158,7 @@ const struct clk_ops mtk_mux_gate_clr_set_upd_ops = {
 	.get_parent = mtk_clk_mux_get_parent,
 	.set_parent = mtk_clk_mux_set_parent_setclr_lock,
 };
+EXPORT_SYMBOL(mtk_mux_gate_clr_set_upd_ops);
 
 struct clk *mtk_clk_register_mux(const struct mtk_mux *mux,
 				 struct regmap *regmap,
@@ -186,6 +191,7 @@ struct clk *mtk_clk_register_mux(const struct mtk_mux *mux,
 
 	return clk;
 }
+EXPORT_SYMBOL(mtk_clk_register_mux);
 
 int mtk_clk_register_muxes(const struct mtk_mux *muxes,
 			   int num, struct device_node *node,
@@ -196,7 +202,7 @@ int mtk_clk_register_muxes(const struct mtk_mux *muxes,
 	struct clk *clk;
 	int i;
 
-	regmap = syscon_node_to_regmap(node);
+	regmap = device_node_to_regmap(node);
 	if (IS_ERR(regmap)) {
 		pr_err("Cannot find regmap for %pOF: %ld\n", node,
 		       PTR_ERR(regmap));
@@ -221,3 +227,8 @@ int mtk_clk_register_muxes(const struct mtk_mux *muxes,
 
 	return 0;
 }
+EXPORT_SYMBOL(mtk_clk_register_muxes);
+
+MODULE_LICENSE("GPL");
+MODULE_DESCRIPTION("MediaTek MUX");
+MODULE_AUTHOR("MediaTek Inc.");

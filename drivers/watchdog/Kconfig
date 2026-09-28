@@ -865,6 +865,13 @@ config MEDIATEK_WATCHDOG
 	  To compile this driver as a module, choose M here: the
 	  module will be called mtk_wdt.
 
+config MEDIATEK_WATCHDOG_PM
+	tristate "MediaTek SoCs watchdog suspend/resume support"
+	depends on MEDIATEK_WATCHDOG
+	help
+	  Say Y here to include support for the watchdog timer
+	  suspend/resume in MediaTek SoCs.
+
 config DIGICOLOR_WATCHDOG
 	tristate "Conexant Digicolor SoCs watchdog support"
 	depends on ARCH_DIGICOLOR || COMPILE_TEST

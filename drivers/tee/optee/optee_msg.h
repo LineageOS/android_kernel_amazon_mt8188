@@ -422,6 +422,20 @@ struct optee_msg_arg {
 #define OPTEE_MSG_RPC_CMD_SHM_FREE	7
 
 /*
+ * Flush log to kree console
+ */
+#define OPTEE_MSG_RPC_CMD_KREE_CONSOLE_FLUSH	14
+
+/*
+ * Clock control
+ *
+ * [in]  param[0].u.value.a		clk name pointer
+ * [in]  param[0].u.value.b		clk name pointer
+ * [in]  param[0].u.value.c		enable or disable
+ */
+#define OPTEE_MSG_RPC_CMD_KREE_CLK_CTRL	16
+
+/*
  * Access a device on an i2c bus
  *
  * [in]  param[0].u.value.a		mode: RD(0), WR(1)

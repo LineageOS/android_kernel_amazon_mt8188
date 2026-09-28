@@ -537,7 +537,10 @@ static void __fill_v4l2_buffer(struct vb2_buffer *vb, void *pb)
 	v4l2_buffer_set_timestamp(b, vb->timestamp);
 	b->timecode = vbuf->timecode;
 	b->sequence = vbuf->sequence;
-	b->reserved2 = 0;
+	if (!(b->flags & V4L2_BUF_FLAG_OUT_FENCE))
+		b->reserved2 = 0;
+	else
+		b->fence_fd = vb->fence_fd;
 	b->request_fd = 0;
 
 	if (q->is_multiplanar) {

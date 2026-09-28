@@ -49,9 +49,19 @@ static int uvc_queue_setup(struct vb2_queue *vq,
 	if (*nbuffers > UVC_MAX_VIDEO_BUFFERS)
 		*nbuffers = UVC_MAX_VIDEO_BUFFERS;
 
-	*nplanes = 1;
-
-	sizes[0] = video->imagesize;
+	if (video->fcc == V4L2_PIX_FMT_NV12M) {
+		*nplanes = 2;
+		if (video->width == 640) {
+			sizes[0] = 640*384;//video->width * video->height;
+			sizes[1] = 640*384/2;//video->width * video->height /2;
+		} else if (video->width == 1280) {
+			sizes[0] = 1280*736;//video->width * video->height;
+			sizes[1] = 1280*736/2;//video->width * video->height /2;
+		}
+	} else {
+		*nplanes = 1;
+		sizes[0] = video->imagesize;
+	}
 
 	req_size = video->ep->maxpacket
 		 * max_t(unsigned int, video->ep->maxburst, 1)
@@ -72,15 +82,15 @@ static int uvc_buffer_prepare(struct vb2_buffer *vb)
 	struct uvc_video_queue *queue = vb2_get_drv_priv(vb->vb2_queue);
 	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
 	struct uvc_buffer *buf = container_of(vbuf, struct uvc_buffer, buf);
+	struct uvc_video *video = container_of(queue, struct uvc_video, queue);
 
-	if (vb->type == V4L2_BUF_TYPE_VIDEO_OUTPUT &&
+	if (vb->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE &&
 	    vb2_get_plane_payload(vb, 0) > vb2_plane_size(vb, 0)) {
-		uvc_trace(UVC_TRACE_CAPTURE, "[E] Bytes used out of bounds.\n");
 		return -EINVAL;
 	}
 
 	if (unlikely(queue->flags & UVC_QUEUE_DISCONNECTED))
-		return -ENODEV;
+		pr_debug("%s UVC_QUEUE_DISCONNECTED\n", __func__);
 
 	buf->state = UVC_BUF_STATE_QUEUED;
 	buf->mem = vb2_plane_vaddr(vb, 0);
@@ -89,6 +99,13 @@ static int uvc_buffer_prepare(struct vb2_buffer *vb)
 		buf->bytesused = 0;
 	else
 		buf->bytesused = vb2_get_plane_payload(vb, 0);
+	buf->length1 = 0;
+	buf->bytesused1 = 0;
+	if (video->fcc == V4L2_PIX_FMT_NV12M) {
+		buf->mem1 = vb2_plane_vaddr(vb, 1);
+		buf->length1 = vb2_plane_size(vb, 1);
+		buf->bytesused1 = vb2_get_plane_payload(vb, 1);
+	}
 
 	return 0;
 }
@@ -115,7 +132,7 @@ static void uvc_buffer_queue(struct vb2_buffer *vb)
 	spin_unlock_irqrestore(&queue->irqlock, flags);
 }
 
-static const struct vb2_ops uvc_queue_qops = {
+static struct vb2_ops uvc_queue_qops = {
 	.queue_setup = uvc_queue_setup,
 	.buf_prepare = uvc_buffer_prepare,
 	.buf_queue = uvc_buffer_queue,
@@ -312,14 +329,16 @@ struct uvc_buffer *uvcg_queue_next_buffer(struct uvc_video_queue *queue,
 					  struct uvc_buffer *buf)
 {
 	struct uvc_buffer *nextbuf;
+	struct uvc_video *video = container_of(queue, struct uvc_video, queue);
 
+	/*
 	if ((queue->flags & UVC_QUEUE_DROP_INCOMPLETE) &&
 	     buf->length != buf->bytesused) {
 		buf->state = UVC_BUF_STATE_QUEUED;
 		vb2_set_plane_payload(&buf->buf.vb2_buf, 0, 0);
 		return buf;
 	}
-
+	*/
 	list_del(&buf->queue);
 	if (!list_empty(&queue->irqqueue))
 		nextbuf = list_first_entry(&queue->irqqueue, struct uvc_buffer,
@@ -331,7 +350,12 @@ struct uvc_buffer *uvcg_queue_next_buffer(struct uvc_video_queue *queue,
 	buf->buf.sequence = queue->sequence++;
 	buf->buf.vb2_buf.timestamp = ktime_get_ns();
 
-	vb2_set_plane_payload(&buf->buf.vb2_buf, 0, buf->bytesused);
+	if (video->fcc == V4L2_PIX_FMT_NV12M) {
+		vb2_set_plane_payload(&buf->buf.vb2_buf, 0, buf->bytesused);//joson
+		vb2_set_plane_payload(&buf->buf.vb2_buf, 1, buf->bytesused1);
+	} else {
+		vb2_set_plane_payload(&buf->buf.vb2_buf, 0, buf->bytesused);
+	}
 	vb2_buffer_done(&buf->buf.vb2_buf, VB2_BUF_STATE_DONE);
 
 	return nextbuf;

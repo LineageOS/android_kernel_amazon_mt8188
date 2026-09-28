@@ -11,6 +11,8 @@
  *
  *	Copyright (c) 2010 Dmitry Torokhov
  *	Input handler conversion
+ *
+ *      Copyright (c) 2022 Amazon.com
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
@@ -51,7 +53,9 @@
 #include <linux/syscalls.h>
 #include <linux/of.h>
 #include <linux/rcupdate.h>
-
+#if defined(CONFIG_MAGIC_SYSRQ_WD_TEST)
+#include <linux/mtk_wdt_func.h>
+#endif
 #include <asm/ptrace.h>
 #include <asm/irq_regs.h>
 
@@ -159,6 +163,66 @@ static const struct sysrq_key_op sysrq_crash_op = {
 	.action_msg	= "Trigger a crash",
 	.enable_mask	= SYSRQ_ENABLE_DUMP,
 };
+
+#if defined(CONFIG_MAGIC_SYSRQ_WD_TEST)
+static DEFINE_SPINLOCK(wdt_lock);
+int __attribute__ ((weak)) mtk_wdt_mode_config_for_sysrq(void)
+{
+	return -1;
+}
+void __attribute__ ((weak)) deactive_mtk_wdd(void)
+{
+
+}
+
+static void sysrq_handle_wdt_sw_rst(int key)
+{
+	const struct wdt_mode_ops *wdt_ops;
+
+	wdt_ops = wdt_mode_ops_get();
+	if(wdt_ops && wdt_ops->deactive_mtk_wdd){
+		wdt_ops->deactive_mtk_wdd();
+	}
+
+	/* For SOFTLOCKUP */
+	spin_lock(&wdt_lock);
+	while (1)
+		;
+}
+
+static struct sysrq_key_op sysrq_wdt_sw_op = {
+	.handler	= sysrq_handle_wdt_sw_rst,
+	.help_msg	= "wdt sw rst(x)",
+	.action_msg	= "Trigger a sw wdt reset",
+	.enable_mask	= SYSRQ_ENABLE_DUMP,
+};
+
+static void sysrq_handle_wdt_hw_rst(int key)
+{
+	unsigned long flags;
+	const struct wdt_mode_ops *wdt_ops;
+
+	wdt_ops = wdt_mode_ops_get();
+	if(wdt_ops && wdt_ops->mtk_wdt_mode_config_for_sysrq)
+		if (unlikely(wdt_ops->mtk_wdt_mode_config_for_sysrq() < 0))
+			return;
+	if(wdt_ops && wdt_ops->deactive_mtk_wdd){
+		wdt_ops->deactive_mtk_wdd();
+	}
+
+	/* For HARDLOCKUP */
+	spin_lock_irqsave(&wdt_lock, flags);
+	while (1)
+		;
+}
+
+static struct sysrq_key_op sysrq_wdt_hw_op = {
+	.handler	= sysrq_handle_wdt_hw_rst,
+	.help_msg	= "wdt hw rst(y)",
+	.action_msg	= "Trigger a hw wdt reset",
+	.enable_mask	= SYSRQ_ENABLE_DUMP,
+};
+#endif /* CONFIG_MAGIC_SYSRQ_WD_TEST */
 
 static void sysrq_handle_reboot(int key)
 {
@@ -497,12 +561,17 @@ static const struct sysrq_key_op *sysrq_key_table[62] = {
 	/* v: May be registered for frame buffer console restore */
 	NULL,				/* v */
 	&sysrq_showstate_blocked_op,	/* w */
+#if defined(CONFIG_MAGIC_SYSRQ_WD_TEST)
+	&sysrq_wdt_sw_op,			/* x */
+	&sysrq_wdt_hw_op,			/* y */
+#else
 	/* x: May be registered on mips for TLB dump */
 	/* x: May be registered on ppc/powerpc for xmon */
 	/* x: May be registered on sparc64 for global PMU dump */
 	NULL,				/* x */
 	/* y: May be registered on sparc64 for global register dump */
 	NULL,				/* y */
+#endif
 	&sysrq_ftrace_dump_op,		/* z */
 	NULL,				/* A */
 	NULL,				/* B */

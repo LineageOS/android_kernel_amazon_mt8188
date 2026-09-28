@@ -21,6 +21,12 @@
 
 #include <trace/events/thermal.h>
 
+#if IS_ENABLED(CONFIG_AMAZON_MINERVA_METRICS_LOG)
+#include <linux/metricslog.h>
+#define GPU_METRICS_STR_LEN 512
+#define PREFIX "thermalgpu:def"
+#endif
+
 #define HZ_PER_KHZ		1000
 #define SCALE_ERROR_MITIGATION	100
 
@@ -93,6 +99,11 @@ static int devfreq_cooling_set_cur_state(struct thermal_cooling_device *cdev,
 	struct device *dev = df->dev.parent;
 	unsigned long freq;
 
+#if IS_ENABLED(CONFIG_AMAZON_MINERVA_METRICS_LOG)
+	char buf[GPU_METRICS_STR_LEN];
+	const struct amazon_logger_ops *amazon_logger = amazon_logger_ops_get();
+#endif
+
 	if (state == dfc->cooling_state)
 		return 0;
 
@@ -105,6 +116,16 @@ static int devfreq_cooling_set_cur_state(struct thermal_cooling_device *cdev,
 
 	dev_pm_qos_update_request(&dfc->req_max_freq,
 				  DIV_ROUND_UP(freq, HZ_PER_KHZ));
+
+#if IS_ENABLED(CONFIG_AMAZON_MINERVA_METRICS_LOG)
+	if (amazon_logger && amazon_logger->minerva_metrics_log) {
+		amazon_logger->minerva_metrics_log(buf, GPU_METRICS_STR_LEN,
+			"%s:%s:100:%s,cooler_name=gpumonitor_%s_cooler;SY,"
+			"target_state=%ld;IN:us-east-1",
+			METRICS_THERMAL_GROUP_ID, METRICS_THERMAL_COOLER_SCHEMA_ID,
+			PREDEFINED_ESSENTIAL_KEY, cdev->type, state);
+		}
+#endif
 
 	dfc->cooling_state = state;
 

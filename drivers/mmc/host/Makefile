@@ -2,6 +2,9 @@
 #
 # Makefile for MMC/SD host controller drivers
 #
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/blocktag/
+ccflags-y += -I$(srctree)/drivers/scsi/ufs/
 
 obj-$(CONFIG_MMC_ARMMMCI) += armmmci.o
 armmmci-y := mmci.o
@@ -28,6 +31,8 @@ obj-$(CONFIG_MMC_WBSD)		+= wbsd.o
 obj-$(CONFIG_MMC_AU1X)		+= au1xmmc.o
 obj-$(CONFIG_MMC_ALCOR)	+= alcor.o
 obj-$(CONFIG_MMC_MTK)		+= mtk-sd.o
+obj-$(CONFIG_MMC_MTK_SDIO)	+= mtksdio.o
+mtksdio-objs := mtk-sdio-proc.o mtk-sdio.o
 obj-$(CONFIG_MMC_OMAP)		+= omap.o
 obj-$(CONFIG_MMC_OMAP_HS)	+= omap_hsmmc.o
 obj-$(CONFIG_MMC_ATMELMCI)	+= atmel-mci.o
@@ -107,6 +112,9 @@ obj-$(CONFIG_MMC_CQHCI)			+= cqhci.o
 cqhci-y					+= cqhci-core.o
 cqhci-$(CONFIG_MMC_CRYPTO)		+= cqhci-crypto.o
 obj-$(CONFIG_MMC_HSQ)			+= mmc_hsq.o
+obj-$(CONFIG_MMC_MTK_PRO)		+= mtk-mmc.o
+obj-$(CONFIG_MMC_AUTOK)			+= mtk-mmc-autok.o
+obj-$(CONFIG_MMC_DEBUG)			+= mtk-mmc-dbg.o
 
 ifeq ($(CONFIG_CB710_DEBUG),y)
 	CFLAGS-cb710-mmc	+= -DDEBUG
