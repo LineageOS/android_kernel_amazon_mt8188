@@ -78,6 +78,15 @@ struct drm_panel_funcs {
 	int (*prepare)(struct drm_panel *panel);
 
 	/**
+	 * @prepare_power:
+	 *
+	 * Turn on panel power set up.
+	 *
+	 * This function is optional.
+	 */
+	int (*prepare_power)(struct drm_panel *panel);
+
+	/**
 	 * @enable:
 	 *
 	 * Enable panel (turn on back light, etc.).
@@ -94,6 +103,15 @@ struct drm_panel_funcs {
 	 * This function is optional.
 	 */
 	int (*disable)(struct drm_panel *panel);
+
+	/**
+	 * @unprepare_power:
+	 *
+	 * Turn off panel power.
+	 *
+	 * This function is optional.
+	 */
+	int (*unprepare_power)(struct drm_panel *panel);
 
 	/**
 	 * @unprepare:
@@ -172,6 +190,22 @@ struct drm_panel {
 	 */
 	struct list_head list;
 };
+
+static inline int drm_panel_unprepare_power(struct drm_panel *panel)
+{
+	if (panel && panel->funcs && panel->funcs->unprepare_power)
+		return panel->funcs->unprepare_power(panel);
+
+	return panel ? -ENOSYS : -EINVAL;
+}
+
+static inline int drm_panel_prepare_power(struct drm_panel *panel)
+{
+	if (panel && panel->funcs && panel->funcs->prepare_power)
+		return panel->funcs->prepare_power(panel);
+
+	return panel ? -ENOSYS : -EINVAL;
+}
 
 void drm_panel_init(struct drm_panel *panel, struct device *dev,
 		    const struct drm_panel_funcs *funcs,

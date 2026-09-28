@@ -15,5 +15,6 @@ int devm_reboot_mode_register(struct device *dev,
 			      struct reboot_mode_driver *reboot);
 void devm_reboot_mode_unregister(struct device *dev,
 				 struct reboot_mode_driver *reboot);
+extern int rtc_mark_quiescent(int value);
 
 #endif

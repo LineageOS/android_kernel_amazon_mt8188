@@ -198,7 +198,8 @@ struct sdio_cccr {
 				wide_bus:1,
 				high_power:1,
 				high_speed:1,
-				disable_cd:1;
+				disable_cd:1,
+				enable_async_int:1;
 };
 
 struct sdio_cis {
@@ -310,6 +311,7 @@ struct mmc_card {
 	unsigned int		sd_bus_speed;	/* Bus Speed Mode set for the card */
 	unsigned int		mmc_avail_type;	/* supported device type by both host and card */
 	unsigned int		drive_strength;	/* for UHS-I, HS200 or HS400 */
+	unsigned int		sd_speed_class;	/* Bus Speed Mode set for the card */
 
 	struct dentry		*debugfs_root;
 	struct mmc_part	part[MMC_NUM_PHY_PARTITION]; /* physical partitions */

@@ -9,6 +9,9 @@
 #include <linux/dma-buf.h>
 #include <linux/err.h>
 #include <linux/device.h>
+#if IS_ENABLED(CONFIG_MTK_ION_DEBUG)
+#include <linux/dma-buf.h>
+#endif
 #include <linux/dma-direction.h>
 #include <linux/kref.h>
 #include <linux/mm_types.h>
@@ -16,6 +19,9 @@
 #include <linux/mutex.h>
 #include <linux/rbtree.h>
 #include <linux/sched.h>
+#if IS_ENABLED(CONFIG_MTK_ION_DEBUG)
+#include <linux/seq_file.h>
+#endif
 #include <linux/shrinker.h>
 #include <linux/types.h>
 #include <uapi/linux/ion.h>
@@ -47,6 +53,9 @@ struct ion_buffer {
 	void *vaddr;
 	struct sg_table *sg_table;
 	struct list_head attachments;
+#if IS_ENABLED(CONFIG_MTK_ION_DEBUG)
+	struct dma_buf *dmabuf;
+#endif
 };
 
 /**
@@ -69,6 +78,10 @@ struct ion_heap_ops {
 	void (*free)(struct ion_buffer *buffer);
 	int (*shrink)(struct ion_heap *heap, gfp_t gfp_mask, int nr_to_scan);
 	long (*get_pool_size)(struct ion_heap *heap);
+#if IS_ENABLED(CONFIG_MTK_ION_DEBUG)
+	int (*debug_show)(struct ion_heap *heap, struct seq_file *s,
+			  void *unused);
+#endif
 };
 
 /**
@@ -142,6 +155,14 @@ struct ion_heap {
 
 	/* heap's debugfs root */
 	struct dentry *debugfs_dir;
+
+#if IS_ENABLED(CONFIG_MTK_ION_DEBUG)
+	struct list_head alloc_list;
+	struct mutex alloc_lock;
+#if IS_ENABLED(CONFIG_PROC_FS)
+	struct proc_dir_entry *proc_dir;
+#endif
+#endif
 };
 
 #define ion_device_add_heap(heap) __ion_device_add_heap(heap, THIS_MODULE)

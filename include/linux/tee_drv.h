@@ -532,6 +532,30 @@ int tee_client_invoke_func(struct tee_context *ctx,
 			   struct tee_param *param);
 
 /**
+ * tee_client_register_shm() - Register share memory
+ * @ctx:	TEE Context
+ * @addr:	buffer address to register as shared memory
+ * @size:	Buffer size to register as shared memory
+ * @id:		returned shared memory id
+ *
+ * Returns < 0 on error else see @arg->ret for result.
+ */
+int tee_client_register_shm(struct tee_context *ctx,
+			    unsigned long addr,
+			    size_t size,
+			    int *id);
+
+/**
+ * tee_client_unregister_shm() - Unregister share memory
+ * @ctx:	TEE Context
+ * @id:		returned shared memory id
+ *
+ * Returns < 0 on error else see @arg->ret for result.
+ */
+int tee_client_unregister_shm(struct tee_context *ctx,
+			      int id);
+
+/**
  * tee_client_cancel_req() - Request cancellation of the previous open-session
  * or invoke-command operations in a Trusted Application
  * @ctx:       TEE Context

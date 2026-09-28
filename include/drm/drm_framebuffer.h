@@ -28,11 +28,11 @@
 #include <linux/sched.h>
 
 #include <drm/drm_mode_object.h>
+#include <drm/drm_fourcc.h>
 
 struct drm_clip_rect;
 struct drm_device;
 struct drm_file;
-struct drm_format_info;
 struct drm_framebuffer;
 struct drm_gem_object;
 

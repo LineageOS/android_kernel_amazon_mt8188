@@ -283,6 +283,7 @@ struct vb2_buffer {
 	struct vb2_plane	planes[VB2_MAX_PLANES];
 	struct list_head	queued_entry;
 	struct list_head	done_entry;
+	int			fence_fd;
 #ifdef CONFIG_VIDEO_ADV_DEBUG
 	/*
 	 * Counters for how often these buffer-related ops are

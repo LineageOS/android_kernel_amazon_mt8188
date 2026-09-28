@@ -65,6 +65,7 @@ struct mmc_command {
 
 /* Can be used by core to poll after switch to MMC HS mode */
 #define MMC_RSP_R1_NO_CRC	(MMC_RSP_PRESENT|MMC_RSP_OPCODE)
+#define MMC_RSP_R1B_NO_CRC	(MMC_RSP_PRESENT|MMC_RSP_OPCODE|MMC_RSP_BUSY)
 
 #define mmc_resp_type(cmd)	((cmd)->flags & (MMC_RSP_PRESENT|MMC_RSP_136|MMC_RSP_CRC|MMC_RSP_BUSY|MMC_RSP_OPCODE))
 
@@ -178,5 +179,9 @@ int mmc_wait_for_cmd(struct mmc_host *host, struct mmc_command *cmd,
 int mmc_hw_reset(struct mmc_host *host);
 int mmc_sw_reset(struct mmc_host *host);
 void mmc_set_data_timeout(struct mmc_data *data, const struct mmc_card *card);
+#if IS_ENABLED(CONFIG_MMC_EXPOSE_START_HOST_API)
+void mmc_start_host(struct mmc_host *host);
+void mmc_stop_host(struct mmc_host *host);
+#endif
 
 #endif /* LINUX_MMC_CORE_H */
