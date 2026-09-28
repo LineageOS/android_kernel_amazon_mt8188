@@ -15,10 +15,10 @@ config MTK_WLAN_GEN4_MT79XX_PREALLOC
 	  Build wlan_mt7902_sdio_prealloc.ko.
 
 config MTK_WLAN_GEN4_MT79XX_RESET
-	bool "Chip reset module"
+	bool "Chip reset and power control module"
 	default y
+	select MMC_EXPOSE_START_HOST_API
 	help
-	  Build wlan_mt7902_sdio_reset.ko, which coordinates whole-chip
-	  resets between the Wi-Fi and Bluetooth drivers.
+	  Build wlan_mt7902_sdio_reset.ko.
 
 endif # MTK_WLAN_GEN4_MT79XX
