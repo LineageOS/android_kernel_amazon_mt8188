@@ -741,7 +741,7 @@ static void btmtk_sdio_open_done(struct btmtk_dev *bdev)
 
 static int btmtk_sdio_writesb(u32 offset, u8 *val, int len, struct sdio_func *func)
 {
-	u32 ret = 0;
+	int ret = 0;
 	u32 retry_count = 0;
 
 	if (func == NULL) {
@@ -753,6 +753,12 @@ static int btmtk_sdio_writesb(u32 offset, u8 *val, int len, struct sdio_func *fu
 		sdio_claim_host(func);
 		ret = sdio_writesb(func, offset, val, len);
 		sdio_release_host(func);
+		if (ret) {
+			BTMTK_ERR(" %s, ret:%d", __func__, ret);
+			if (ret == -ETIMEDOUT)
+				return ret;
+			usleep_range(5 * 1000, 10 * 1000);
+		}
 		retry_count++;
 		if (retry_count > SDIO_RW_RETRY_COUNT) {
 			BTMTK_ERR(" %s, ret:%d", __func__, ret);
@@ -765,7 +771,7 @@ static int btmtk_sdio_writesb(u32 offset, u8 *val, int len, struct sdio_func *fu
 
 static int btmtk_sdio_readsb(u32 offset, u8 *val, int len, struct sdio_func *func)
 {
-	u32 ret = 0;
+	int ret = 0;
 	u32 retry_count = 0;
 
 	if (func == NULL) {
@@ -777,6 +783,12 @@ static int btmtk_sdio_readsb(u32 offset, u8 *val, int len, struct sdio_func *fun
 		sdio_claim_host(func);
 		ret = sdio_readsb(func, val, offset, len);
 		sdio_release_host(func);
+		if (ret) {
+			BTMTK_ERR(" %s, ret:%d", __func__, ret);
+			if (ret == -ETIMEDOUT)
+				return ret;
+			usleep_range(5 * 1000, 10 * 1000);
+		}
 		retry_count++;
 		if (retry_count > SDIO_RW_RETRY_COUNT) {
 			BTMTK_ERR(" %s, ret:%d", __func__, ret);
@@ -789,7 +801,7 @@ static int btmtk_sdio_readsb(u32 offset, u8 *val, int len, struct sdio_func *fun
 
 int btmtk_sdio_writeb(u32 offset, u8 val, struct sdio_func *func)
 {
-	u32 ret = 0;
+	int ret = 0;
 	u32 retry_count = 0;
 
 	if (func == NULL) {
@@ -801,6 +813,12 @@ int btmtk_sdio_writeb(u32 offset, u8 val, struct sdio_func *func)
 		sdio_claim_host(func);
 		sdio_writeb(func, val, offset, &ret);
 		sdio_release_host(func);
+		if (ret) {
+			BTMTK_ERR(" %s, ret:%d", __func__, ret);
+			if (ret == -ETIMEDOUT)
+				return ret;
+			usleep_range(5 * 1000, 10 * 1000);
+		}
 		retry_count++;
 		if (retry_count > SDIO_RW_RETRY_COUNT) {
 			BTMTK_ERR(" %s, ret:%d", __func__, ret);
@@ -813,7 +831,7 @@ int btmtk_sdio_writeb(u32 offset, u8 val, struct sdio_func *func)
 
 static int btmtk_sdio_writel(u32 offset, u32 val, struct sdio_func *func)
 {
-	u32 ret = 0;
+	int ret = 0;
 	u32 retry_count = 0;
 
 	if (func == NULL) {
@@ -825,6 +843,12 @@ static int btmtk_sdio_writel(u32 offset, u32 val, struct sdio_func *func)
 		sdio_claim_host(func);
 		sdio_writel(func, val, offset, &ret);
 		sdio_release_host(func);
+		if (ret) {
+			BTMTK_ERR(" %s, ret:%d", __func__, ret);
+			if (ret == -ETIMEDOUT)
+				return ret;
+			usleep_range(5 * 1000, 10 * 1000);
+		}
 		retry_count++;
 		if (retry_count > SDIO_RW_RETRY_COUNT) {
 			BTMTK_ERR(" %s, ret:%d", __func__, ret);
@@ -837,7 +861,7 @@ static int btmtk_sdio_writel(u32 offset, u32 val, struct sdio_func *func)
 
 static int btmtk_sdio_readl(u32 offset,  u32 *val, struct sdio_func *func)
 {
-	u32 ret = 0;
+	int ret = 0;
 	u32 retry_count = 0;
 
 	if (func == NULL) {
@@ -849,6 +873,12 @@ static int btmtk_sdio_readl(u32 offset,  u32 *val, struct sdio_func *func)
 		sdio_claim_host(func);
 		*val = sdio_readl(func, offset, &ret);
 		sdio_release_host(func);
+		if (ret) {
+			BTMTK_ERR(" %s, ret:%d", __func__, ret);
+			if (ret == -ETIMEDOUT)
+				return ret;
+			usleep_range(5 * 1000, 10 * 1000);
+		}
 		retry_count++;
 		if (retry_count > SDIO_RW_RETRY_COUNT) {
 			BTMTK_ERR(" %s, ret:%d", __func__, ret);
@@ -861,7 +891,7 @@ static int btmtk_sdio_readl(u32 offset,  u32 *val, struct sdio_func *func)
 
 static int btmtk_sdio_readb(u32 offset, u8 *val, struct sdio_func *func)
 {
-	u32 ret = 0;
+	int ret = 0;
 	u32 retry_count = 0;
 
 	if (func == NULL) {
@@ -873,6 +903,12 @@ static int btmtk_sdio_readb(u32 offset, u8 *val, struct sdio_func *func)
 		sdio_claim_host(func);
 		*val = sdio_readb(func, offset, &ret);
 		sdio_release_host(func);
+		if (ret) {
+			BTMTK_ERR(" %s, ret:%d", __func__, ret);
+			if (ret == -ETIMEDOUT)
+				return ret;
+			usleep_range(5 * 1000, 10 * 1000);
+		}
 		retry_count++;
 		if (retry_count > SDIO_RW_RETRY_COUNT) {
 			BTMTK_ERR(" %s, ret:%d", __func__, ret);
