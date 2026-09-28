@@ -1,0 +1,54 @@
+/* SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause */
+
+#ifndef _WHOLE_CHIP_RESET_H
+#define _WHOLE_CHIP_RESET_H
+
+#include <linux/types.h>
+
+enum ENUM_RST_MODULE_TYPE_T {
+	RST_MODULE_BT = 0,
+	RST_MODULE_WIFI,
+	RST_MODULE_MAX
+};
+
+enum ENUM_RST_MODULE_STATE_TYPE_T {
+	RST_MODULE_STATE_PRERESET = 0,
+	RST_MODULE_STATE_KO_INSMOD,
+	RST_MODULE_STATE_KO_RMMOD,
+	RST_MODULE_STATE_PROBE_START,
+	RST_MODULE_STATE_PROBE_DONE,
+	RST_MODULE_STATE_DUMP_START,
+	RST_MODULE_STATE_DUMP_END,
+	RST_MODULE_STATE_MAX
+};
+
+enum ENUM_RST_MODULE_RET_TYPE_T {
+	RST_MODULE_RET_SUCCESS = 0,
+	RST_MODULE_RET_FAIL,
+	RST_MODULE_RET_MAX
+};
+
+struct WIFI_NOTIFY_DESC {
+	bool (*BtNotifyWifiSubResetStep1)(u8 enable);
+};
+
+struct BT_NOTIFY_DESC {
+	s32 (*WifiNotifyBtSubResetStep1)(s32 enable);
+	s32 (*WifiNotifyReadBtMcuPc)(u32 *val);
+	s32 (*WifiNotifyReadWifiMcuPc)(u8 sel, u32 *val);
+};
+
+enum ENUM_RST_MODULE_RET_TYPE_T rstNotifyWholeChipRstStatus(
+				enum ENUM_RST_MODULE_TYPE_T module,
+				enum ENUM_RST_MODULE_STATE_TYPE_T status,
+				void *data);
+
+void register_bt_notify_callback(struct BT_NOTIFY_DESC *bt_notify_cb);
+void unregister_bt_notify_callback(void);
+struct BT_NOTIFY_DESC *get_bt_notify_callback(void);
+
+void register_wifi_notify_callback(struct WIFI_NOTIFY_DESC *wifi_notify_cb);
+void unregister_wifi_notify_callback(void);
+struct WIFI_NOTIFY_DESC *get_wifi_notify_callback(void);
+
+#endif /* _WHOLE_CHIP_RESET_H */
