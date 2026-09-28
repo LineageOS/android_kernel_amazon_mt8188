@@ -539,6 +539,9 @@ obj-dirs := $(sort $(patsubst %/,%, $(dir $(targets))))
 # If targets exist, their directories apparently exist. Skip mkdir.
 existing-dirs := $(sort $(patsubst %/,%, $(dir $(existing-targets))))
 obj-dirs := $(strip $(filter-out $(existing-dirs), $(obj-dirs)))
+ifeq ($(KBUILD_EXTMOD),)
+obj-dirs := $(strip $(filter-out /%,$(subst $(abs_objtree)/,,$(abspath $(obj-dirs)))))
+endif
 ifneq ($(obj-dirs),)
 $(shell mkdir -p $(obj-dirs))
 endif
