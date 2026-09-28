@@ -2048,6 +2048,13 @@ else
 endif
 
 #
+ifeq ($(CONFIG_CHIP_RESET_LEGACY_KO), y)
+    ccflags-y += -DCFG_CHIP_RESET_LEGACY_KO=1
+    ccflags-y += -I$(src)/reset/include
+else
+    ccflags-y += -DCFG_CHIP_RESET_LEGACY_KO=0
+endif
+
 # mtreset: build mtreset.ko
 #
 ifeq ($(CONFIG_BUILD_RESETKO), y)

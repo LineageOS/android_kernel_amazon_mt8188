@@ -492,7 +492,8 @@ u_int8_t mt7961HalSetNoBTFwOwnEn(IN int32_t i4Enable)
 	DBGLOG(INIT, STATE, "[SER][L0.5] %s, i4Enable=%d\n",
 						bt_func_name, i4Enable);
 	pvAddr = GLUE_SYMBOL_GET(bt_func_name);
-#else
+#elif CFG_CHIP_RESET_LEGACY_KO
+	pvAddr = get_bt_notify_callback()->WifiNotifyBtSubResetStep1;
 #endif
 	if (pvAddr) {
 		bt_func = (p_bt_fun_type) pvAddr;

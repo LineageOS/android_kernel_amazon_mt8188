@@ -7623,6 +7623,11 @@ static int32_t wlanProbe(void *pvData, void *pvDriverData)
 	}
 #endif  /* CFG_CHIP_RESET_SUPPORT */
 
+#if CFG_CHIP_RESET_LEGACY_KO
+	rstNotifyWholeChipRstStatus(RST_MODULE_WIFI,
+				    RST_MODULE_STATE_PROBE_START, NULL);
+#endif
+
 #if 0
 	uint8_t *pucConfigBuf = NULL, pucCfgBuf = NULL;
 	uint32_t u4ConfigReadLen = 0;
@@ -7972,6 +7977,11 @@ static int32_t wlanProbe(void *pvData, void *pvDriverData)
 		DBGLOG(INIT, LOUD,
 			"only need to update lastUpdateTime when wifi on\n");
 	}
+#endif
+
+#if CFG_CHIP_RESET_LEGACY_KO
+	rstNotifyWholeChipRstStatus(RST_MODULE_WIFI,
+				    RST_MODULE_STATE_PROBE_DONE, NULL);
 #endif
 WLAN_PROBE_RETURN:
 #if CFG_CHIP_RESET_SUPPORT
@@ -8639,6 +8649,10 @@ static int initWlan(void)
 	resetko_register_module(RESET_MODULE_TYPE_WIFI, "wifi",
 				resetkoNotifyFunc);
 #endif
+#if CFG_CHIP_RESET_LEGACY_KO
+	rstNotifyWholeChipRstStatus(RST_MODULE_WIFI,
+				    RST_MODULE_STATE_KO_INSMOD, NULL);
+#endif
 #endif
 
 #if CFG_DRIVER_INF_NAME_CHANGE
@@ -8825,6 +8839,11 @@ static void exitWlan(void)
 		netlink_kernel_release(nl_sk);
 #endif /* CFG_AP_80211KVR_INTERFACE */
 	DBGLOG(INIT, STATE, "exit wlan start\n");
+
+#if CFG_CHIP_RESET_SUPPORT && CFG_CHIP_RESET_LEGACY_KO
+	rstNotifyWholeChipRstStatus(RST_MODULE_WIFI,
+				    RST_MODULE_STATE_KO_RMMOD, NULL);
+#endif
 
 	prGlueInfo = NULL;
 	for (u4DevIdx = 0; u4DevIdx < CFG_MAX_WLAN_DEVICES; u4DevIdx++) {

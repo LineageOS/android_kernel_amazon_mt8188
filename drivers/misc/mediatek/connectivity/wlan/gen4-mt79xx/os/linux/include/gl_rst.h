@@ -103,6 +103,9 @@ struct CHIP_RESET_INFO {
 	uint32_t u4PowerOffCount;
 	u_int8_t fgIsPendingForReady;
 #endif
+#if CFG_CHIP_RESET_LEGACY_KO
+	struct work_struct rWholeChipResetWork;
+#endif
 #if CFG_ENABLE_WAKE_LOCK
 	KAL_WAKE_LOCK_T *prWlanChipResetWakeLock;
 #endif

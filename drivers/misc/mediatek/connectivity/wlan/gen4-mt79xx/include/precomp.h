@@ -332,6 +332,9 @@
 #if CFG_CHIP_RESET_KO_SUPPORT
 #include "reset.h"
 #endif
+#if CFG_CHIP_RESET_LEGACY_KO
+#include "whole_chip_reset.h"
+#endif
 
 #if CFG_CONN_DYNAMIC_POWER_CTRL
 #include "gl_cdev_wifi.h"

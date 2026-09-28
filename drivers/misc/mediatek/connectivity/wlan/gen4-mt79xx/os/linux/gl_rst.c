@@ -89,7 +89,8 @@ static void glSetWfsysResetState(struct ADAPTER *prAdapter,
 			  enum ENUM_WFSYS_RESET_STATE_TYPE_T state);
 static void WfsysResetHdlr(struct work_struct *work);
 
-#if defined(_HIF_USB) || (0 == CFG_CHIP_RESET_KO_SUPPORT)
+#if !CFG_CHIP_RESET_LEGACY_KO && \
+	(defined(_HIF_USB) || (0 == CFG_CHIP_RESET_KO_SUPPORT))
 static u_int8_t is_bt_exist(void);
 static u_int8_t rst_L0_notify_step1(struct GLUE_INFO *prGlueInfo);
 static void wait_core_dump_end(struct GLUE_INFO *prGlueInfo);
@@ -370,6 +371,24 @@ static void glResetDestroyWakeLock(struct GLUE_INFO *prGlueInfo)
 #endif
 }
 
+#if CFG_CHIP_RESET_LEGACY_KO
+static void glWholeChipResetWork(struct work_struct *work)
+{
+	struct CHIP_RESET_INFO *prChipResetInfo =
+		container_of(work, struct CHIP_RESET_INFO, rWholeChipResetWork);
+	struct GLUE_INFO *prGlueInfo = prChipResetInfo->prGlueInfo;
+	void *pvFunc = NULL;
+
+#if defined(_HIF_SDIO)
+	pvFunc = prGlueInfo->rHifInfo.func;
+#endif
+	DBGLOG(INIT, STATE, "[SER][L0] request whole chip reset\n");
+	rstNotifyWholeChipRstStatus(RST_MODULE_WIFI,
+				    RST_MODULE_STATE_PRERESET, pvFunc);
+	glSetSimplifyResetFlowFlag(prGlueInfo, FALSE);
+}
+#endif /* CFG_CHIP_RESET_LEGACY_KO */
+
 /*----------------------------------------------------------------------------*/
 /*!
  * @brief This routine is responsible for
@@ -395,6 +414,10 @@ void glResetInit(struct GLUE_INFO *prGlueInfo)
 	glSetResettingFlag(prGlueInfo, FALSE);
 	glSetSimplifyResetFlowFlag(prGlueInfo, FALSE);
 	glResetInitWakeLock(prGlueInfo);
+#if CFG_CHIP_RESET_LEGACY_KO
+	INIT_WORK(&P_CHIP_RESET_INFO(prGlueInfo)->rWholeChipResetWork,
+		  glWholeChipResetWork);
+#endif
 
 	P_CHIP_RESET_INFO(prGlueInfo)->fgIsInitialized = TRUE;
 
@@ -451,6 +474,17 @@ void glReseProbeRemoveDone(struct GLUE_INFO *prGlueInfo, int32_t i4Status,
 			__func__, bus_id,
 			P_CHIP_RESET_INFO(prGlueInfo)->u4ProbeCount,
 			i4Status);
+#if CFG_CHIP_RESET_LEGACY_KO && defined(_HIF_SDIO)
+		/* Let BT keep the driver own during its subsystem reset */
+		if (i4Status == WLAN_STATUS_SUCCESS && prGlueInfo->prAdapter &&
+		    prGlueInfo->prAdapter->chip_info->asicSetNoBTFwOwnEn) {
+			struct WIFI_NOTIFY_DESC rWifiNotifyDesc = {
+				.BtNotifyWifiSubResetStep1 = halPreventFwOwnEn,
+			};
+
+			register_wifi_notify_callback(&rWifiNotifyDesc);
+		}
+#endif
 #if CFG_CHIP_RESET_KO_SUPPORT
 		if (i4Status == WLAN_STATUS_SUCCESS) {
 			glSendResetEvent(bus_id,
@@ -504,6 +538,13 @@ void glReseProbeRemoveDone(struct GLUE_INFO *prGlueInfo, int32_t i4Status,
 void glResetUninit(struct GLUE_INFO *prGlueInfo)
 {
 	P_CHIP_RESET_INFO(prGlueInfo)->fgIsInitialized = FALSE;
+
+#if CFG_CHIP_RESET_LEGACY_KO
+	cancel_work_sync(&P_CHIP_RESET_INFO(prGlueInfo)->rWholeChipResetWork);
+#if defined(_HIF_SDIO)
+	unregister_wifi_notify_callback();
+#endif
+#endif
 
 	glResetDestroyWakeLock(prGlueInfo);
 
@@ -823,8 +864,18 @@ static void glResetTriggerCommon(struct ADAPTER *prAdapter, uint32_t u4RstFlag,
 		halPrintHifDbgInfo(prAdapter);
 		if ((u4RstFlag & RST_FLAG_DO_CORE_DUMP)
 			&& (prChipDbg->show_mcu_debug_info != NULL)) {
+#if CFG_CHIP_RESET_LEGACY_KO
+			if (rstNotifyWholeChipRstStatus(RST_MODULE_WIFI,
+					RST_MODULE_STATE_DUMP_START, NULL) ==
+			    RST_MODULE_RET_FAIL)
+				return;
+#endif
 			prChipDbg->show_mcu_debug_info(prAdapter, NULL, 0,
 				DBG_MCU_DBG_ALL, NULL);
+#if CFG_CHIP_RESET_LEGACY_KO
+			rstNotifyWholeChipRstStatus(RST_MODULE_WIFI,
+					RST_MODULE_STATE_DUMP_END, NULL);
+#endif
 		}
 	} else
 		DBGLOG(INIT, WARN, "bypass debug msg when fw own\n");
@@ -1171,7 +1222,10 @@ static void mtk_wifi_reset_main(struct GLUE_INFO *prGlueInfo)
 	 * execute through resetko. In the case of USB HIF, if resetko fails
 	 * to execute, the wifi driver can directly pull the reset pin.
 	 */
-#if defined(_HIF_USB) || (0 == CFG_CHIP_RESET_KO_SUPPORT)
+#if CFG_CHIP_RESET_LEGACY_KO
+	/* The reset module resets the whole chip, Wi-Fi and BT alike */
+	schedule_work(&P_CHIP_RESET_INFO(prGlueInfo)->rWholeChipResetWork);
+#elif defined(_HIF_USB) || (0 == CFG_CHIP_RESET_KO_SUPPORT)
 	fgResult = rst_L0_notify_step1(prGlueInfo);
 
 	if (fgResult == BT_RESET_NOT_OK) {
@@ -1332,7 +1386,8 @@ void resetkoNotifyFunc(unsigned int event, void *data)
 
 #endif  /* CFG_CHIP_RESET_KO_SUPPORT */
 
-#if defined(_HIF_USB) || (0 == CFG_CHIP_RESET_KO_SUPPORT)
+#if !CFG_CHIP_RESET_LEGACY_KO && \
+	(defined(_HIF_USB) || (0 == CFG_CHIP_RESET_KO_SUPPORT))
 static u_int8_t is_bt_exist(void)
 {
 	char *bt_func_name = "btmtk_sdio_whole_reset";

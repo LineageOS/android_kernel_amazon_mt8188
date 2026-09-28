@@ -1506,6 +1506,8 @@ u_int8_t sdio_show_mcu_debug_info(struct ADAPTER *prAdapter,
 
 #if	(CFG_ENABLE_GKI_SUPPORT != 1)
 	pvAddr = GLUE_SYMBOL_GET(bt_func_name);
+#elif CFG_CHIP_RESET_LEGACY_KO
+	pvAddr = get_bt_notify_callback()->WifiNotifyReadWifiMcuPc;
 #endif
 	if (!pvAddr) {
 		DBGLOG(INIT, WARN, "%s does not exist\n", bt_func_name);
