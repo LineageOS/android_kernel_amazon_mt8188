@@ -5446,6 +5446,8 @@ u_int8_t kalIsCardRemoved(IN struct GLUE_INFO *prGlueInfo)
 u_int8_t kalRetrieveNetworkAddress(IN struct GLUE_INFO *prGlueInfo,
 			IN OUT uint8_t *prMacAddr)
 {
+	const uint8_t aucZeroMacAddr[] = NULL_MAC_ADDR;
+
 	ASSERT(prGlueInfo);
 
 	/* Get MAC address override from wlan feature option */
@@ -5457,6 +5459,14 @@ u_int8_t kalRetrieveNetworkAddress(IN struct GLUE_INFO *prGlueInfo,
 		prGlueInfo->rMacAddrOverride);
 
 	if (prGlueInfo->fgIsMacAddrOverride == FALSE) {
+		/* An address loaded at probe, e.g. from IDME, comes first */
+		if (!IS_BMCAST_MAC_ADDR(prGlueInfo->rRegInfo.aucMacAddr) &&
+		    !EQUAL_MAC_ADDR(aucZeroMacAddr,
+				    prGlueInfo->rRegInfo.aucMacAddr)) {
+			COPY_MAC_ADDR(prMacAddr,
+				      prGlueInfo->rRegInfo.aucMacAddr);
+			return TRUE;
+		}
 
 #if CFG_ENABLE_EFUSE_MAC_ADDR
 		if (prGlueInfo->prAdapter->fgIsEmbbededMacAddrValid) {

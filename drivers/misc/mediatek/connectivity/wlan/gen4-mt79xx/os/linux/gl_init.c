@@ -5991,6 +5991,28 @@ static void consys_log_event_notification(struct net_device *prDev,
 }
 #endif
 
+static void glLoadIdmeMacAddr(struct REG_INFO *prRegInfo)
+{
+	uint8_t aucMacAddr[MAC_ADDR_LEN];
+	struct device_node *np;
+	const char *value;
+	int len;
+
+	np = of_find_node_by_path("/idme/mac_addr");
+	if (!np)
+		return;
+
+	value = of_get_property(np, "value", &len);
+	if (value && len >= MAC_ADDR_LEN * 2 &&
+	    !hex2bin(aucMacAddr, value, MAC_ADDR_LEN) &&
+	    is_valid_ether_addr(aucMacAddr)) {
+		COPY_MAC_ADDR(prRegInfo->aucMacAddr, aucMacAddr);
+		DBGLOG(INIT, INFO, "IDME MAC address: " MACSTR "\n",
+		       MAC2STR(aucMacAddr));
+	}
+	of_node_put(np);
+}
+
 static
 void wlanOnPreAdapterStart(struct GLUE_INFO *prGlueInfo,
 	struct ADAPTER *prAdapter,
@@ -6057,6 +6079,7 @@ void wlanOnPreAdapterStart(struct GLUE_INFO *prGlueInfo,
 	/* Load NVRAM content to REG_INFO_T */
 	glLoadNvram(prGlueInfo, *pprRegInfo);
 #endif
+	glLoadIdmeMacAddr(*pprRegInfo);
 
 	/* kalMemCopy(&prGlueInfo->rRegInfo, prRegInfo,
 	 *            sizeof(REG_INFO_T));
