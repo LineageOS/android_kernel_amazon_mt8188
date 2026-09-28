@@ -23,7 +23,8 @@ ccflags-y			+= -I$(srctree)/$(src)/reset/include
 
 ifeq ($(CONFIG_MTK_WLAN_GEN4_MT79XX_RESET),y)
 obj-m				+= $(MODULE_NAME_RESET).o
-$(MODULE_NAME_RESET)-y		:= reset/whole_chip_reset.o
+$(MODULE_NAME_RESET)-y		:= reset/whole_chip_reset.o reset/comm_core.o
+CFLAGS_reset/comm_core.o	+= -I$(srctree)/drivers/gpu/drm/mediatek/mediatek_v2
 endif
 
 include $(srctree)/$(src)/Makefile

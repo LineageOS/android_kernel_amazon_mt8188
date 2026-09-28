@@ -51,4 +51,22 @@ void register_wifi_notify_callback(struct WIFI_NOTIFY_DESC *wifi_notify_cb);
 void unregister_wifi_notify_callback(void);
 struct WIFI_NOTIFY_DESC *get_wifi_notify_callback(void);
 
+enum ENUM_COMM_CORE_STATUS_CMD_T {
+	COMM_CORE_STATUS_PROBE_START = 0,
+	COMM_CORE_STATUS_PROBE_SUCCESS,
+	COMM_CORE_STATUS_PROBE_FAIL,
+	COMM_CORE_STATUS_REMOVE_START,
+	COMM_CORE_STATUS_REMOVE_SUCCESS,
+	COMM_CORE_STATUS_REMOVE_FAIL,
+	COMM_CORE_STATUS_MAX
+};
+
+struct sdio_driver;
+
+void comm_core_register_sdio_driver(enum ENUM_RST_MODULE_TYPE_T module,
+				    struct sdio_driver *drv);
+void comm_core_unregister_sdio_driver(enum ENUM_RST_MODULE_TYPE_T module);
+void NotifyCommCoreStatusCmd(enum ENUM_RST_MODULE_TYPE_T module,
+			     enum ENUM_COMM_CORE_STATUS_CMD_T cmd, void *data);
+
 #endif /* _WHOLE_CHIP_RESET_H */

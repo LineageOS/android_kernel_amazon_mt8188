@@ -11,6 +11,7 @@
 #include <linux/mutex.h>
 #include <linux/pm_wakeup.h>
 
+#include "comm_core.h"
 #include "whole_chip_reset.h"
 
 #define RST_STATUS_BT_PROBE_DONE	BIT(0)
@@ -60,6 +61,7 @@ static bool rst_bt_probed;
 static bool rst_wifi_probed;
 static struct mmc_host *rst_host;
 static struct wakeup_source *rst_ws;
+static bool rst_comm_core;
 
 static struct WIFI_NOTIFY_DESC wifi_notify_desc;
 static struct BT_NOTIFY_DESC bt_notify_desc;
@@ -97,6 +99,14 @@ static void rst_do_reset(void)
 
 	pr_info("toggle reset pin\n");
 	pm_wakeup_ws_event(rst_ws, RST_WAKELOCK_TIMEOUT_MS, false);
+
+	/* COMM-CORE power cycles the chip, Wi-Fi and BT report back */
+	if (rst_comm_core) {
+		if (comm_core_trigger_rst())
+			pr_err("COMM-CORE rst fail\n");
+		return;
+	}
+
 	rst_toggle_host(host);
 }
 
@@ -253,15 +263,26 @@ EXPORT_SYMBOL(get_wifi_notify_callback);
 
 static int __init whole_chip_reset_init(void)
 {
+	int ret;
+
 	rst_ws = wakeup_source_register(NULL, "WHOLE_CHIP_RESET");
 	if (!rst_ws)
 		return -ENOMEM;
+
+	/* Without COMM-CORE, resets fall back to re-adding the SDIO host */
+	ret = comm_core_init();
+	if (ret)
+		pr_warn("WARNING: comm_core init fail: %d\n", ret);
+	else
+		rst_comm_core = true;
 
 	return 0;
 }
 
 static void __exit whole_chip_reset_exit(void)
 {
+	if (rst_comm_core)
+		comm_core_exit();
 	wakeup_source_unregister(rst_ws);
 }
 
