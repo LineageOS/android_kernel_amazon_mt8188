@@ -9,7 +9,10 @@
 #include <linux/string.h>
 #include <linux/elf.h>
 #include <linux/dma-mapping.h>
+#include <linux/module.h>
 #include <linux/of_device.h>
+
+MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
 
 #define DRAM_BOOT_SIZE 0x400
 #define DRAM_MAIN_SIZE 0xFF00
