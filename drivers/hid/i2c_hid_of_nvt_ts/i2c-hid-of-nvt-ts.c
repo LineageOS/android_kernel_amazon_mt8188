@@ -1738,3 +1738,4 @@ module_i2c_driver(nvt_ts_i2c_hid_of_driver);
 
 MODULE_DESCRIPTION("Novatek Touchscreen Driver");
 MODULE_LICENSE("GPL");
+MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
