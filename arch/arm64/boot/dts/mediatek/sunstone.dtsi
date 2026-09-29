@@ -1,0 +1,4599 @@
+/*
+ * Copyright (C) 2022 Amazon.com
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ */
+
+#include <dt-bindings/clock/mt8188-clk.h>
+#include <dt-bindings/gce/mt8188-gce.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/thermal/thermal.h>
+#include <dt-bindings/pinctrl/mt8188-pinfunc.h>
+
+&rt1711_typec {
+	rt-tcpc,name = "type_c_port0";
+	rt-tcpc,role_def = <5>;
+	rt-tcpc,rp_level = <0>;
+	rt-tcpc,vconn_supply = <1>;
+	rt-tcpc,notifier_supply_num = <3>;
+	interrupts-extended = <&pio 12 IRQ_TYPE_LEVEL_LOW>;
+	charger = <&rt9467_chg>;
+
+	pd-data {
+		pd,vid = <10703>;
+		pd,pid = <5905>;
+		pd,source-cap-ext = <0x171129cf 0 0 0 0 0x2000000>;
+		pd,mfrs = "RichtekTCPC";
+		pd,charging_policy = <49>;
+		pd,source-pdo-size = <0x1>;
+		pd,source-pdo-data = <102450>;
+		pd,sink-pdo-size = <0x1>;
+		pd,sink-pdo-data = <102600>;
+		pd,id-vdo-size = <0x6>;
+		pd,id-vdo-data = <0xd14029cf 0 0x17110000 0x41800000 0 0x21800000>;
+		bat,nr = <1>;
+		pd,country_nr = <0>;
+
+		bat-info0 {
+			bat,vid = <10703>;
+			bat,pid = <5905>;
+			bat,mfrs = "bat1";
+			bat,design_cap = <3000>;
+		};
+	};
+
+	dpm_caps {
+		local_dr_power;
+		local_dr_data;
+		local_usb_comm;
+		local_no_suspend;
+		local_vconn_supply;
+		attempt_enter_dp_mode;
+		attempt_discover_cable;
+		attempt_discover_id;
+		pr_check = <0>;
+		dr_check = <0>;
+	};
+
+	displayport {
+		1st_connection = "dfp_d";
+		2nd_connection = "dfp_d";
+		signal,dp_v13;
+		typec,receptacle;
+
+		ufp_d {
+		};
+
+		dfp_d {
+			pin_assignment,mode_c;
+			pin_assignment,mode_d;
+			pin_assignment,mode_e;
+		};
+	};
+};
+
+&husb311_typec {
+	tcpc-dual,supported_modes = <0>;
+	tcpc,name = "type_c_port0";
+	tcpc,role_def = <5>;
+	tcpc,rp_level = <0>;
+	tcpc,vconn_supply = <1>;
+	tcpc,notifier_supply_num = <2>;
+	husb311pd,intr_gpio = <&pio 0 0>;
+	husb311pd,intr_gpio_num = <0>;
+	charger = <&rt9467_chg>;
+
+	pd-data {
+		pd,vid = <11929>;
+		pd,pid = <785>;
+		pd,source-cap-ext = <0x171129cf 0 0 0 0 0x2000000>;
+		pd,mfrs = "HynetekTCPC";
+		pd,charging_policy = <49>;
+		pd,source-pdo-size = <0x1>;
+		pd,source-pdo-data = <102450>;
+		pd,sink-pdo-size = <0x2>;
+		pd,sink-pdo-data = <102600 184520>;
+		pd,id-vdo-size = <0x3>;
+		pd,id-vdo-data = <0xd10029cf 0 0x17110000>;
+		bat,nr = <1>;
+		pd,country_nr = <0>;
+
+		bat-info0 {
+			bat,vid = <10703>;
+			bat,pid = <5905>;
+			bat,mfrs = "bat1";
+			bat,design_cap = <3000>;
+		};
+	};
+
+	dpm_caps {
+		local_dr_power;
+		local_dr_data;
+		local_usb_comm;
+		local_no_suspend;
+		local_vconn_supply;
+		attemp_enter_dp_mode;
+		attemp_discover_cable;
+		attemp_discover_id;
+		pr_check = <0>;
+		dr_check = <0>;
+	};
+
+	displayport {
+		1st_connection = "dfp_d";
+		2nd_connection = "dfp_d";
+		signal,dp_v13;
+		usbr20_not_used;
+		typec,receptacle;
+
+		ufp_d {
+		};
+
+		dfp_d {
+			pin_assignment,mode_c;
+			pin_assignment,mode_d;
+			pin_assignment,mode_e;
+			pin_assignment,mode_f;
+		};
+	};
+};
+
+&spi2 {
+	dbmd4_spi: dbmd4_interface@0x0 {
+		compatible = "dspg,dbmd4-spi";
+		reg = <0>;
+		spi-max-frequency = <125000000>;
+		read-chunk-size = <0x10000>;
+		write-chunk-size = <0x10000>;
+		dma_min_buffer_size = <0>;
+	};
+};
+
+&odm {
+	dbmdx {
+		status = "okay";
+		compatible = "dspg,dbmdx-codec";
+		interrupt-parent = <&pio>;
+		interrupts = <14 IRQ_TYPE_EDGE_RISING>;
+		reset_gpio_shared = <0>;
+		reset-gpio = <&pio 146 GPIO_ACTIVE_HIGH>;
+		sv-gpio = <&pio 8 GPIO_ACTIVE_HIGH>;
+		wakeup-gpio = <&pio 145 GPIO_ACTIVE_HIGH>;
+		auto_buffering = <0>;
+		multi-interface-support = <1>;
+		cd-interfaces = <&dbmd4_spi>;
+		va-interfaces = <0 0 0 0>;
+		feature-va_ve;
+		va-firmware-name = "dsp_sunstone.bin";
+		va-preboot-firmware-name = "dbmd4_va_preboot_fw.bin";
+		va-config = <0x80000000 0x80000000 0x80000000 0x80290020 0x801b0020 0x800903e8 0x80220020 0x80330051
+		             0x80230000 0x801a0013 0x8012001e 0x80150094 0x8305e000 0x8010c000 0x8aab0040 0x800c1200
+		             0x80240207 0x8aab0064 0x80250000 0x80240000 0x801f0000 0x80168b00 0x8004ffc0 0x80000000
+		             0x80000000 0x80000000>;
+		va-speeds = <0 460800 0 1000000 0 2000000 0 7000000 0 3000000 0 4000000>;
+		va-mic-config = <20598 41057 8>;
+		va_ve-mic-config = <20598 41057 41107 0>;
+		va-mic-mode = <0>;
+		master-clk-rate = <0x8000>;
+		default_va_clock = <98304000>;
+		auto_detection = <0>;
+		firmware_id = <56276>;
+		wakeup_disabled = <0>;
+		use_gpio_for_wakeup = <1>;
+		send_wakeup_seq = <0>;
+		wakeup_set_value = <0>;
+		uart_low_speed_enabled = <1>;
+		detection_buffer_channels = <0>;
+		pcm_streaming_mode = <0>;
+		boot_options = <544>;
+		send_uevent_on_detection = <1>;
+		send_uevent_after_buffering = <1>;
+		detection_after_buffering = <0>;
+		change_clock_src_options = <16387>;
+		va_backlog_length = <502>;
+		va_backlog_length_alexa = <502>;
+		low_power_mode_disabled = <0>;
+		hw_revision = <0>;
+		project_sub_type = <1>;
+		buffering_timeout = <20>;
+		default-streaming-usecase-name = "uc_melon_low_power";
+		alsa_streaming_options = <12>;
+	};
+
+	dbmdx-snd-soc-platform {
+		compatible = "dspg,dbmdx-snd-soc-platform";
+	};
+
+	snd-dbmdx-mach-drv {
+		compatible = "dspg,snd-dbmdx-mach-drv";
+	};
+};
+
+&mtk_gauge {
+	DIFFERENCE_FULLOCV_ITH = <200>;
+	SHUTDOWN_1_TIME = <5>;
+	KEEP_100_PERCENT = <1>;
+	R_FG_VALUE = <5>;
+	EMBEDDED_SEL = <1>;
+	PMIC_SHUTDOWN_CURRENT = <20>;
+	FG_METER_RESISTANCE = <75>;
+	CAR_TUNE_VALUE = <100>;
+	PMIC_MIN_VOL = <33500>;
+	POWERON_SYSTEM_IBOOT = <500>;
+	SHUTDOWN_GAUGE0_VOLTAGE = <34000>;
+	TEMPERATURE_T0 = <50>;
+	TEMPERATURE_T1 = <25>;
+	TEMPERATURE_T2 = <10>;
+	TEMPERATURE_T3 = <0>;
+	TEMPERATURE_T4 = <(-10)>;
+	g_FG_PSEUDO100_T0 = <100>;
+	g_FG_PSEUDO100_T1 = <100>;
+	g_FG_PSEUDO100_T2 = <100>;
+	g_FG_PSEUDO100_T3 = <100>;
+	g_FG_PSEUDO100_T4 = <100>;
+	Q_MAX_SYS_VOLTAGE_BAT0 = <3350>;
+	Q_MAX_SYS_VOLTAGE_BAT1 = <3350>;
+	Q_MAX_SYS_VOLTAGE_BAT2 = <3350>;
+	Q_MAX_SYS_VOLTAGE_BAT3 = <3350>;
+	COM_FG_METER_RESISTANCE = <100>;
+	COM_R_FG_VALUE = <0>;
+	enable_tmp_intr_suspend = <0>;
+	ACTIVE_TABLE = <5>;
+	MULTI_TEMP_GAUGE0 = <1>;
+	RBAT_PULL_UP_R = <61900>;
+	RBAT_PULL_UP_VOLT = <2800>;
+};
+
+&odm {
+	mmc_fixed_3v3: fixedregulator0 {
+		compatible = "regulator-fixed";
+		regulator-name = "mmc_power";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		enable-active-high;
+		regulator-always-on;
+	};
+
+	mmc_fixed_1v8_io: fixedregulator1 {
+		compatible = "regulator-fixed";
+		regulator-name = "mmc_io";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		enable-active-high;
+		regulator-always-on;
+	};
+
+	opp_table_apu_conn: opp-table-apu-conn {
+		compatible = "operating-points-v2";
+
+		opp-0 {
+			opp-hz = /bits/ 64 <700000000>;
+			opp-microvolt = <775000>;
+		};
+
+		opp-1 {
+			opp-hz = /bits/ 64 <640000000>;
+			opp-microvolt = <750000>;
+		};
+
+		opp-2 {
+			opp-hz = /bits/ 64 <533000000>;
+			opp-microvolt = <700000>;
+		};
+
+		opp-3 {
+			opp-hz = /bits/ 64 <400000000>;
+			opp-microvolt = <650000>;
+		};
+
+		opp-4 {
+			opp-hz = /bits/ 64 <275000000>;
+			opp-microvolt = <600000>;
+		};
+
+		opp-5 {
+			opp-hz = /bits/ 64 <210000000>;
+			opp-microvolt = <575000>;
+		};
+
+		opp-6 {
+			opp-hz = /bits/ 64 <160000000>;
+			opp-microvolt = <550000>;
+		};
+	};
+
+	opp_table_apu_rv: opp-table-apu-rv {
+		compatible = "operating-points-v2";
+
+		opp-0 {
+			opp-hz = /bits/ 64 <700000000>;
+			opp-microvolt = <775000>;
+		};
+
+		opp-1 {
+			opp-hz = /bits/ 64 <640000000>;
+			opp-microvolt = <750000>;
+		};
+
+		opp-2 {
+			opp-hz = /bits/ 64 <533000000>;
+			opp-microvolt = <700000>;
+		};
+
+		opp-3 {
+			opp-hz = /bits/ 64 <400000000>;
+			opp-microvolt = <650000>;
+		};
+
+		opp-4 {
+			opp-hz = /bits/ 64 <275000000>;
+			opp-microvolt = <600000>;
+		};
+
+		opp-5 {
+			opp-hz = /bits/ 64 <210000000>;
+			opp-microvolt = <575000>;
+		};
+
+		opp-6 {
+			opp-hz = /bits/ 64 <160000000>;
+			opp-microvolt = <550000>;
+		};
+	};
+
+	opp_table_dla: opp-table-dla {
+		compatible = "operating-points-v2";
+
+		opp-0 {
+			opp-hz = /bits/ 64 <900000000>;
+			opp-microvolt = <775000>;
+		};
+
+		opp-1 {
+			opp-hz = /bits/ 64 <840000000>;
+			opp-microvolt = <750000>;
+		};
+
+		opp-2 {
+			opp-hz = /bits/ 64 <700000000>;
+			opp-microvolt = <700000>;
+		};
+
+		opp-3 {
+			opp-hz = /bits/ 64 <570000000>;
+			opp-microvolt = <650000>;
+		};
+
+		opp-4 {
+			opp-hz = /bits/ 64 <430000000>;
+			opp-microvolt = <600000>;
+		};
+
+		opp-5 {
+			opp-hz = /bits/ 64 <360000000>;
+			opp-microvolt = <575000>;
+		};
+
+		opp-6 {
+			opp-hz = /bits/ 64 <250000000>;
+			opp-microvolt = <550000>;
+		};
+	};
+
+	opp_table_vpu: opp-table-vpu {
+		compatible = "operating-points-v2";
+
+		opp-0 {
+			opp-hz = /bits/ 64 <832000000>;
+			opp-microvolt = <775000>;
+		};
+
+		opp-1 {
+			opp-hz = /bits/ 64 <728000000>;
+			opp-microvolt = <750000>;
+		};
+
+		opp-2 {
+			opp-hz = /bits/ 64 <624000000>;
+			opp-microvolt = <700000>;
+		};
+
+		opp-3 {
+			opp-hz = /bits/ 64 <525000000>;
+			opp-microvolt = <650000>;
+		};
+
+		opp-4 {
+			opp-hz = /bits/ 64 <360000000>;
+			opp-microvolt = <600000>;
+		};
+
+		opp-5 {
+			opp-hz = /bits/ 64 <275000000>;
+			opp-microvolt = <575000>;
+		};
+
+		opp-6 {
+			opp-hz = /bits/ 64 <190000000>;
+			opp-microvolt = <550000>;
+		};
+	};
+
+	sdio_fixed_3v3: regulator@2 {
+		compatible = "regulator-fixed";
+		regulator-name = "sdio_card";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		enable-active-high;
+		regulator-always-on;
+	};
+
+	sdio_fixed_1v8: regulator@3 {
+		compatible = "regulator-fixed";
+		regulator-name = "sdio_io";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		enable-active-high;
+		regulator-always-on;
+	};
+
+	pogo_otg: regulator@4 {
+		compatible = "regulator-fixed";
+		regulator-name = "otg_vbus";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&pio 147 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+	};
+
+	mediatek,mediatek-wifi {
+		compatible = "mediatek,mediatek_wifi_ctrl";
+		interrupt-parent = <&pio>;
+		interrupts = <70 IRQ_TYPE_EDGE_FALLING>;
+		status = "okay";
+	};
+
+	mediatek,connsys_pwr_ctrl {
+		compatible = "mediatek,connsys_pwr_ctrl";
+		vcn33-gpio = <&pio 74 GPIO_ACTIVE_HIGH>;
+		vcn18-supply = <&mt6359_vcn18_reg>;
+	};
+
+	hall_sensors: hall_sensors {
+		compatible = "will,hall-wh2509f";
+		screen-int-gpio = <&pio 1 GPIO_ACTIVE_HIGH>;
+		screen-sensor-name = "hall-sensor-screen";
+#ifdef SUNSTONE_KEYBOARD_HALL_SENSOR
+		sensor-num = <2>;
+		keyboard-int-gpio = <&pio 30 GPIO_ACTIVE_HIGH>;
+		keyboard-sensor-name = "hall-sensor-keyboard";
+#else
+		sensor-num = <1>;
+#endif
+	};
+
+	tboard_thermistor1: tboard_thermistor1 {
+		compatible = "generic-adc-thermal";
+		#thermal-sensor-cells = <0>;
+		io-channels = <&auxadc 0>;
+		io-channel-names = "sensor-channel";
+		temperature-lookup-table = <(-5000) 985
+		                            0 860
+		                            5000 740
+		                            10000 629
+		                            15000 530
+		                            20000 442
+		                            25000 367
+		                            30000 304
+		                            35000 251
+		                            40000 207
+		                            45000 171
+		                            50000 141
+		                            55000 117
+		                            60000 97
+		                            65000 81
+		                            70000 67
+		                            75000 56
+		                            80000 47
+		                            85000 40
+		                            90000 34
+		                            95000 29
+		                            100000 25
+		                            105000 21
+		                            110000 18
+		                            115000 15
+		                            120000 13
+		                            125000 12>;
+	};
+
+	tboard_thermistor2: tboard_thermistor2 {
+		compatible = "generic-adc-thermal";
+		#thermal-sensor-cells = <0>;
+		io-channels = <&auxadc 2>;
+		io-channel-names = "sensor-channel";
+		temperature-lookup-table = <(-5000) 985
+		                            0 860
+		                            5000 740
+		                            10000 629
+		                            15000 530
+		                            20000 442
+		                            25000 367
+		                            30000 304
+		                            35000 251
+		                            40000 207
+		                            45000 171
+		                            50000 141
+		                            55000 117
+		                            60000 97
+		                            65000 81
+		                            70000 67
+		                            75000 56
+		                            80000 47
+		                            85000 40
+		                            90000 34
+		                            95000 29
+		                            100000 25
+		                            105000 21
+		                            110000 18
+		                            115000 15
+		                            120000 13
+		                            125000 12>;
+	};
+
+	tboard_thermistor3: tboard_thermistor3 {
+		compatible = "generic-adc-thermal";
+		#thermal-sensor-cells = <0>;
+		io-channels = <&auxadc 3>;
+		io-channel-names = "sensor-channel";
+		temperature-lookup-table = <(-5000) 985
+		                            0 860
+		                            5000 740
+		                            10000 629
+		                            15000 530
+		                            20000 442
+		                            25000 367
+		                            30000 304
+		                            35000 251
+		                            40000 207
+		                            45000 171
+		                            50000 141
+		                            55000 117
+		                            60000 97
+		                            65000 81
+		                            70000 67
+		                            75000 56
+		                            80000 47
+		                            85000 40
+		                            90000 34
+		                            95000 29
+		                            100000 25
+		                            105000 21
+		                            110000 18
+		                            115000 15
+		                            120000 13
+		                            125000 12>;
+	};
+
+	tboard_thermistor4: tboard_thermistor4 {
+		compatible = "generic-adc-thermal";
+		#thermal-sensor-cells = <0>;
+		io-channels = <&auxadc 4>;
+		io-channel-names = "sensor-channel";
+		temperature-lookup-table = <(-5000) 985
+		                            0 860
+		                            5000 740
+		                            10000 629
+		                            15000 530
+		                            20000 442
+		                            25000 367
+		                            30000 304
+		                            35000 251
+		                            40000 207
+		                            45000 171
+		                            50000 141
+		                            55000 117
+		                            60000 97
+		                            65000 81
+		                            70000 67
+		                            75000 56
+		                            80000 47
+		                            85000 40
+		                            90000 34
+		                            95000 29
+		                            100000 25
+		                            105000 21
+		                            110000 18
+		                            115000 15
+		                            120000 13
+		                            125000 12>;
+	};
+
+	tboard_thermistor5: tboard_thermistor5 {
+		compatible = "generic-adc-thermal";
+		#thermal-sensor-cells = <0>;
+		io-channels = <&pmic_auxadc 11>;
+		io-channel-names = "sensor-channel";
+		temperature-lookup-table = <(-5000) 985
+		                            0 860
+		                            5000 740
+		                            10000 629
+		                            15000 530
+		                            20000 442
+		                            25000 367
+		                            30000 304
+		                            35000 251
+		                            40000 207
+		                            45000 171
+		                            50000 141
+		                            55000 117
+		                            60000 97
+		                            65000 81
+		                            70000 67
+		                            75000 56
+		                            80000 47
+		                            85000 40
+		                            90000 34
+		                            95000 29
+		                            100000 25
+		                            105000 21
+		                            110000 18
+		                            115000 15
+		                            120000 13
+		                            125000 12>;
+	};
+
+	goodix_fp: fingerprint {
+		compatible = "mediatek,goodix-fp";
+		interrupt-parent = <&pio>;
+		interrupts = <9 IRQ_TYPE_EDGE_RISING>;
+		pinctrl-names = "fingerprint_irq", "power_high", "power_low", "reset_high", "reset_low";
+		pinctrl-0 = <&fingerprint_irq>;
+		pinctrl-1 = <&fingerprint_power_high>;
+		pinctrl-2 = <&fingerprint_power_low>;
+		pinctrl-3 = <&fingerprint_reset_high>;
+		pinctrl-4 = <&fingerprint_reset_low>;
+		status = "okay";
+	};
+
+	vs1_wire: vs1_wire {
+		compatible = "amazon,vs1_wire", "simple-bus";
+		status = "okay";
+
+		virtual_sensor@0 {
+			compatible = "amazon,virtual_sensor-thermal";
+			dev_id = <0>;
+			num_trips = <9>;
+			mode = <0>;
+			polling_delay = <3000>;
+			governor_name = "virtual_sensor";
+			num_tbps = <3>;
+			temp = <44500 45000 47000 49000 50000 52000 54000 55000 56000 56000 56000 56000>;
+			type = <1 1 1 1 1 1 1 1 3 3 3 3>;
+			hyst = <3000 0 0 0 0 0 0 3000 0 0 0 0>;
+			num_cdevs = <3>;
+			cdev_names = "thermal_budget0", "lcd-backlight0", "devfreq_gpu0";
+		};
+
+		backlight@0 {
+			compatible = "amazon,backlight_cooler";
+			type = "lcd-backlight0";
+			state = <0>;
+			max_state = <12>;
+			level = <255>;
+			thermal_cooler_id = <1>;
+			levels = <255 255 255 255 255 126 76 76 76 76 76 76>;
+		};
+
+		thermal_budget@0 {
+			compatible = "amazon,thermal_budget_cooler";
+			type = "thermal_budget0";
+			state = <0>;
+			max_state = <12>;
+			level = <4600>;
+			thermal_cooler_id = <2>;
+			levels = <1672 1560 1560 1422 1224 1022 786 786 544 544 544 544>;
+		};
+
+		devfreq_gpu@0 {
+			compatible = "amazon,devfreq_cooler";
+			type = "devfreq_gpu0";
+			state = <0>;
+			max_state = <12>;
+			level = <950000000>;
+			thermal_cooler_id = <4>;
+			devfreq = <&mali>;
+			levels = <950000000 950000000 950000000 950000000 950000000 950000000 950000000 950000000
+			          950000000 950000000 950000000 950000000>;
+		};
+
+		thermal_pmic@0 {
+			compatible = "amazon,virtual_sensor_thermal_sensor";
+			thermal_sensor,offset = <24500>;
+			thermal_sensor,alpha = <987>;
+			thermal_sensor,weight = <141>;
+			thermal_sensor,weight_invert = <0>;
+			thermal_sensor,offset_invert = <0>;
+			thermal_sensor_id = <3>;
+			aux_channel_num = <0>;
+			select_device = <0>;
+		};
+
+		thermistor_ap_ntc@00 {
+			compatible = "amazon,virtual_sensor_thermal_sensor";
+			thermal_sensor,offset = <47300>;
+			thermal_sensor,offset_invert = <0>;
+			thermal_sensor,alpha = <417>;
+			thermal_sensor,weight = <0>;
+			thermal_sensor,weight_invert = <0>;
+			thermal_sensor_id = <5>;
+			aux_channel_num = <0>;
+			select_device = <0>;
+		};
+
+		thermistor_sdcard_ntc@01 {
+			compatible = "amazon,virtual_sensor_thermal_sensor";
+			thermal_sensor,offset = <22300>;
+			thermal_sensor,offset_invert = <0>;
+			thermal_sensor,alpha = <716>;
+			thermal_sensor,weight = <355>;
+			thermal_sensor,weight_invert = <0>;
+			thermal_sensor_id = <5>;
+			aux_channel_num = <1>;
+			select_device = <0>;
+		};
+
+		thermistor_pm6365_ntc@02 {
+			compatible = "amazon,virtual_sensor_thermal_sensor";
+			thermal_sensor,offset = <10200>;
+			thermal_sensor,offset_invert = <1>;
+			thermal_sensor,alpha = <1000>;
+			thermal_sensor,weight = <448>;
+			thermal_sensor,weight_invert = <0>;
+			thermal_sensor_id = <5>;
+			aux_channel_num = <2>;
+			select_device = <0>;
+		};
+
+		thermistor_charge_ntc@04 {
+			compatible = "amazon,virtual_sensor_thermal_sensor";
+			thermal_sensor,offset = <66400>;
+			thermal_sensor,offset_invert = <0>;
+			thermal_sensor,alpha = <18>;
+			thermal_sensor,weight = <209>;
+			thermal_sensor,weight_invert = <1>;
+			thermal_sensor_id = <5>;
+			aux_channel_num = <4>;
+			select_device = <0>;
+		};
+	};
+
+	vs2_wire: vs2_wire {
+		compatible = "amazon,vs2_wire", "simple-bus";
+		status = "okay";
+
+		virtual_sensor@1 {
+			compatible = "amazon,virtual_sensor-thermal";
+			dev_id = <1>;
+			num_trips = <9>;
+			mode = <0>;
+			polling_delay = <3000>;
+			governor_name = "virtual_sensor";
+			num_tbps = <4>;
+			temp = <37000 40000 40500 41000 42000 45000 49000 50000 51000 51000 51000 51000>;
+			type = <1 1 1 1 1 1 1 1 3 3 3 3>;
+			hyst = <3000 0 0 0 0 0 0 1000 0 0 0 0>;
+			num_cdevs = <4>;
+			cdev_names = "thermal_budget1", "bcct1", "lcd-backlight1", "devfreq_gpu1";
+		};
+
+		backlight@1 {
+			compatible = "amazon,backlight_cooler";
+			type = "lcd-backlight1";
+			state = <0>;
+			max_state = <12>;
+			level = <255>;
+			thermal_cooler_id = <1>;
+			levels = <255 255 255 255 255 126 76 76 76 76 76 76>;
+		};
+
+		bcct@1 {
+			compatible = "amazon,battery_current_cooler";
+			type = "bcct1";
+			state = <0>;
+			max_state = <12>;
+			level = <320001>;
+			thermal_cooler_id = <0>;
+			levels = <50000 50000 1000 1000 1000 1000 1000 1000 1000 1000 1000 1000>;
+		};
+
+		thermal_budget@1 {
+			compatible = "amazon,thermal_budget_cooler";
+			type = "thermal_budget1";
+			state = <0>;
+			max_state = <12>;
+			level = <4600>;
+			thermal_cooler_id = <2>;
+			levels = <2640 1672 1560 1422 1224 1022 786 786 544 544 544 544>;
+		};
+
+		devfreq_gpu@1 {
+			compatible = "amazon,devfreq_cooler";
+			type = "devfreq_gpu1";
+			state = <0>;
+			max_state = <12>;
+			level = <950000000>;
+			thermal_cooler_id = <4>;
+			devfreq = <&mali>;
+			levels = <950000000 950000000 950000000 950000000 950000000 950000000 950000000 950000000
+			          950000000 950000000 950000000 950000000>;
+		};
+
+		thermal_pmic@1 {
+			compatible = "amazon,virtual_sensor_thermal_sensor";
+			thermal_sensor,offset = <6380>;
+			thermal_sensor,alpha = <949>;
+			thermal_sensor,weight = <319>;
+			thermal_sensor,weight_invert = <0>;
+			thermal_sensor,offset_invert = <1>;
+			thermal_sensor_id = <3>;
+			aux_channel_num = <0>;
+			select_device = <1>;
+		};
+
+		thermistor_ap_ntc@10 {
+			compatible = "amazon,virtual_sensor_thermal_sensor";
+			thermal_sensor,offset = <47300>;
+			thermal_sensor,offset_invert = <0>;
+			thermal_sensor,alpha = <417>;
+			thermal_sensor,weight = <0>;
+			thermal_sensor,weight_invert = <0>;
+			thermal_sensor_id = <5>;
+			aux_channel_num = <0>;
+			select_device = <1>;
+		};
+
+		thermistor_sdcard_ntc@11 {
+			compatible = "amazon,virtual_sensor_thermal_sensor";
+			thermal_sensor,offset = <2670>;
+			thermal_sensor,offset_invert = <0>;
+			thermal_sensor,alpha = <780>;
+			thermal_sensor,weight = <710>;
+			thermal_sensor,weight_invert = <0>;
+			thermal_sensor_id = <5>;
+			aux_channel_num = <1>;
+			select_device = <1>;
+		};
+
+		thermistor_pm6365_ntc@12 {
+			compatible = "amazon,virtual_sensor_thermal_sensor";
+			thermal_sensor,offset = <48500>;
+			thermal_sensor,offset_invert = <0>;
+			thermal_sensor,alpha = <0>;
+			thermal_sensor,weight = <0>;
+			thermal_sensor,weight_invert = <0>;
+			thermal_sensor_id = <5>;
+			aux_channel_num = <2>;
+			select_device = <1>;
+		};
+
+		thermistor_charge_ntc@14 {
+			compatible = "amazon,virtual_sensor_thermal_sensor";
+			thermal_sensor,offset = <49400>;
+			thermal_sensor,offset_invert = <0>;
+			thermal_sensor,alpha = <302>;
+			thermal_sensor,weight = <0>;
+			thermal_sensor,weight_invert = <0>;
+			thermal_sensor_id = <5>;
+			aux_channel_num = <4>;
+			select_device = <1>;
+		};
+	};
+
+	vs3_wire: vs3_wire {
+		compatible = "amazon,vs3_wire", "simple-bus";
+		status = "okay";
+
+		virtual_sensor@2 {
+			compatible = "amazon,virtual_sensor-thermal";
+			dev_id = <2>;
+			num_trips = <9>;
+			mode = <0>;
+			polling_delay = <3000>;
+			governor_name = "virtual_sensor";
+			num_tbps = <3>;
+			temp = <44500 45000 47000 49000 50000 52000 54000 55000 56000 56000 56000 56000>;
+			type = <1 1 1 1 1 1 1 1 3 3 3 3>;
+			hyst = <3000 0 0 0 0 0 0 3000 0 0 0 0>;
+			num_cdevs = <3>;
+			cdev_names = "thermal_budget2", "lcd-backlight2", "devfreq_gpu2";
+		};
+
+		backlight@2 {
+			compatible = "amazon,backlight_cooler";
+			type = "lcd-backlight2";
+			state = <0>;
+			max_state = <12>;
+			level = <255>;
+			thermal_cooler_id = <1>;
+			levels = <255 255 255 255 255 126 76 76 76 76 76 76>;
+		};
+
+		thermal_budget@2 {
+			compatible = "amazon,thermal_budget_cooler";
+			type = "thermal_budget2";
+			state = <0>;
+			max_state = <12>;
+			level = <4600>;
+			thermal_cooler_id = <2>;
+			levels = <1672 1560 1560 1422 1224 1022 786 786 544 544 544 544>;
+		};
+
+		devfreq_gpu@2 {
+			compatible = "amazon,devfreq_cooler";
+			type = "devfreq_gpu2";
+			state = <0>;
+			max_state = <12>;
+			level = <950000000>;
+			thermal_cooler_id = <4>;
+			devfreq = <&mali>;
+			levels = <950000000 950000000 950000000 950000000 950000000 950000000 950000000 950000000
+			          950000000 950000000 950000000 950000000>;
+		};
+
+		thermal_pmic@2 {
+			compatible = "amazon,virtual_sensor_thermal_sensor";
+			thermal_sensor,offset = <46000>;
+			thermal_sensor,alpha = <720>;
+			thermal_sensor,weight = <0>;
+			thermal_sensor,weight_invert = <0>;
+			thermal_sensor,offset_invert = <0>;
+			thermal_sensor_id = <3>;
+			aux_channel_num = <0>;
+			select_device = <2>;
+		};
+
+		thermistor_ap_ntc@20 {
+			compatible = "amazon,virtual_sensor_thermal_sensor";
+			thermal_sensor,offset = <47300>;
+			thermal_sensor,offset_invert = <0>;
+			thermal_sensor,alpha = <417>;
+			thermal_sensor,weight = <0>;
+			thermal_sensor,weight_invert = <0>;
+			thermal_sensor_id = <5>;
+			aux_channel_num = <0>;
+			select_device = <2>;
+		};
+
+		thermistor_sdcard_ntc@21 {
+			compatible = "amazon,virtual_sensor_thermal_sensor";
+			thermal_sensor,offset = <2480>;
+			thermal_sensor,offset_invert = <1>;
+			thermal_sensor,alpha = <827>;
+			thermal_sensor,weight = <417>;
+			thermal_sensor,weight_invert = <0>;
+			thermal_sensor_id = <5>;
+			aux_channel_num = <1>;
+			select_device = <2>;
+		};
+
+		thermistor_pm6365_ntc@22 {
+			compatible = "amazon,virtual_sensor_thermal_sensor";
+			thermal_sensor,offset = <48500>;
+			thermal_sensor,offset_invert = <0>;
+			thermal_sensor,alpha = <0>;
+			thermal_sensor,weight = <0>;
+			thermal_sensor,weight_invert = <0>;
+			thermal_sensor_id = <5>;
+			aux_channel_num = <2>;
+			select_device = <2>;
+		};
+
+		thermistor_charge_ntc@24 {
+			compatible = "amazon,virtual_sensor_thermal_sensor";
+			thermal_sensor,offset = <15500>;
+			thermal_sensor,offset_invert = <1>;
+			thermal_sensor,alpha = <1000>;
+			thermal_sensor,weight = <378>;
+			thermal_sensor,weight_invert = <0>;
+			thermal_sensor_id = <5>;
+			aux_channel_num = <4>;
+			select_device = <2>;
+		};
+	};
+
+	sysrst_cooling: sysrst_cooling {
+		compatible = "amazon,sysrst_cooler";
+		type = "thermal_reboot";
+		#cooling-cells = <2>;
+	};
+};
+
+&reserved_memory {
+	mdump-reserved-memory@0x7d2c0000 {
+		compatible = "amazon,mdump-reserve-memory";
+		reg = <0 0x7d2c0000 0 0x40000>;
+	};
+};
+
+&afe {
+	mediatek,memif_force_sram = <6 15>;
+	assigned-clocks = <&topckgen CLK_TOP_AUD_INTBUS_SEL>,
+	                  <&topckgen CLK_TOP_A1SYS_HP_SEL>,
+	                  <&topckgen CLK_TOP_A2SYS_SEL>,
+	                  <&topckgen CLK_TOP_A3SYS_SEL>,
+	                  <&topckgen CLK_TOP_A4SYS_SEL>;
+	assigned-clock-parents = <&clk26m>,
+	                         <&clk26m>,
+	                         <&clk26m>,
+	                         <&clk26m>,
+	                         <&clk26m>;
+	status = "okay";
+};
+
+&accdet {
+	accdet-mic-mode = <1>;
+	was4780_audio_switch = <&audio_switch>;
+	headset-use-ap-eint = <1>;
+	mic_voltage_delay = <20>;
+	switch-mode-vol = <521>;
+	status = "okay";
+};
+
+&pdc {
+	status = "disabled";
+	pd_vbus_upper_bound = <9000000>;
+	pd_hv_input_current_limit = <1700000>;
+};
+
+&pd_adapter {
+	status = "disabled";
+};
+
+&apu_iommu0 {
+	status = "okay";
+};
+
+&apu_iommu1 {
+	status = "okay";
+};
+
+&apu_top_3 {
+	vapu-supply = <&mt6359_vmodem_reg>;
+	vsram-supply = <&mt6359_vsram_md_reg>;
+	operating-points-v2 = <&opp_table_apu_conn &opp_table_apu_rv &opp_table_vpu &opp_table_dla>;
+	status = "okay";
+};
+
+&apusys_hw_logger {
+	status = "okay";
+};
+
+&apusys_reviser {
+	status = "okay";
+};
+
+&apusys_rv {
+	status = "okay";
+};
+
+&auxadc {
+	status = "okay";
+};
+
+&cam_vcore {
+	domain-supply = <&mt6359_vproc1_reg>;
+};
+
+&ccu_rproc {
+	secured = "no";
+};
+
+&chosen {
+	bootargs_ext = "clk_ignore_unused pd_ignore_unused";
+};
+
+&ddr_emi {
+	dvfsrc-helper {
+		vcore-supply = <&mt6359_vgpu11_reg>;
+		status = "okay";
+	};
+};
+
+&disp_dpi1 {
+	status = "okay";
+
+	port {
+
+		dpi1_out: endpoint@0 {
+			remote-endpoint = <&hdmi0_in>;
+		};
+	};
+};
+
+&disp_dsi0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&panel_pins_default>;
+
+	panel@0 {
+		compatible = "panel,ft8205_wuxga_dsi_vdo";
+		reg = <0>;
+		enable-gpios = <&pio 25 GPIO_ACTIVE_HIGH>;
+		leden-gpios = <&pio 144 GPIO_ACTIVE_HIGH>;
+		avdd-gpios = <&pio 130 GPIO_ACTIVE_HIGH>;
+		avee-gpios = <&pio 129 GPIO_ACTIVE_HIGH>;
+		ctp-rst-gpio = <&pio 5 GPIO_ACTIVE_HIGH>;
+		pp1800-supply = <&mt6359_vrf18_reg>;
+		status = "okay";
+
+		port {
+
+			panel_in: endpoint {
+				remote-endpoint = <&dsi_out>;
+			};
+		};
+	};
+
+	panel@2 {
+		compatible = "panel,nt36523b_wuxga_dsi_vdo";
+		reg = <0x2>;
+		enable-gpios = <&pio 25 GPIO_ACTIVE_HIGH>;
+		leden-gpios = <&pio 144 GPIO_ACTIVE_HIGH>;
+		avdd-gpios = <&pio 130 GPIO_ACTIVE_HIGH>;
+		avee-gpios = <&pio 129 GPIO_ACTIVE_HIGH>;
+		ctp-rst-gpios = <&pio 5 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&te_pins_default>;
+		pp1800-supply = <&mt6359_vrf18_reg>;
+		status = "okay";
+
+		port {
+
+			panel2_in: endpoint {
+				remote-endpoint = <&dsi2_out>;
+			};
+		};
+	};
+
+	panel@3 {
+		compatible = "panel,ili9882t_wuxga_dsi_vdo";
+		reg = <0x3>;
+		enable-gpios = <&pio 25 GPIO_ACTIVE_HIGH>;
+		leden-gpios = <&pio 144 GPIO_ACTIVE_HIGH>;
+		avdd-gpios = <&pio 130 GPIO_ACTIVE_HIGH>;
+		avee-gpios = <&pio 129 GPIO_ACTIVE_HIGH>;
+		ctp-rst-gpios = <&pio 5 GPIO_ACTIVE_HIGH>;
+		pp1800-supply = <&mt6359_vrf18_reg>;
+		status = "okay";
+
+		port {
+
+			panel3_in: endpoint {
+				remote-endpoint = <&dsi3_out>;
+			};
+		};
+	};
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+
+			dsi_out: endpoint {
+				remote-endpoint = <&panel_in>;
+			};
+		};
+
+		port@2 {
+			reg = <0x2>;
+
+			dsi2_out: endpoint {
+				remote-endpoint = <&panel2_in>;
+			};
+		};
+
+		port@3 {
+			reg = <0x3>;
+
+			dsi3_out: endpoint {
+				remote-endpoint = <&panel3_in>;
+			};
+		};
+	};
+};
+
+&dsi_te {
+	interrupt-parent = <&pio>;
+	interrupts = <26 IRQ_TYPE_EDGE_RISING>;
+	status = "okay";
+};
+
+&disp_pwm0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pwm0_gpio_def_cfg>;
+	status = "okay";
+};
+
+&odm {
+	keycombo@1 {
+		compatible = "amzn,keycombo";
+		keys_down = "KEY_POWER";
+		keys_down_delay = <6000>;
+		keys_down_func = <1>;
+		status = "okay";
+	};
+
+	ld {
+		compatible = "amzn,ld";
+		status = "okay";
+		work_interval = <15 30 60>;
+		threshold = <120 1450>;
+		gpio_reverse_ctrl;
+		io-channels = <&auxadc 1>;
+		io-channel-names = "ld_adc_channel";
+		pinctrl-names = "ldctrl1_init", "ldctrl1_low", "ldctrl1_high",
+		                "lddetection1_init", "lddetection1_low",
+		                "lddetection1_high", "lddetection2_init",
+		                "lddetection2_low", "lddetection2_high";
+		pinctrl-0 = <&ld_ctrl1_init>;
+		pinctrl-1 = <&ld_ctrl1_low>;
+		pinctrl-2 = <&ld_ctrl1_high>;
+		pinctrl-3 = <&ld_detection1_init>;
+		pinctrl-4 = <&ld_detection1_low>;
+		pinctrl-5 = <&ld_detection1_high>;
+		pinctrl-6 = <&ld_detection2_init>;
+		pinctrl-7 = <&ld_detection2_low>;
+		pinctrl-8 = <&ld_detection2_high>;
+		liquid-id = <&pio 17 0>;
+	};
+
+	pubadc {
+		compatible = "amzn,pubadc";
+		pubadc-id = <&pio 17 0>;
+		pinctrl-names = "pubadc_bat_id", "pubadc_liquid";
+		pinctrl-0 = <&public_adc_bat_id>;
+		pinctrl-1 = <&public_adc_liquid>;
+		io-channels = <&auxadc 1>;
+		io-channel-names = "pubadc_adc_channel";
+		pubadc_dts_id = [00];
+	};
+};
+
+&eth {
+	phy-mode = "rgmii-rxid";
+	phy-handle = <&eth_phy0>;
+	snps,reset = <&pio 147 0>;
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&eth_default>;
+	pinctrl-1 = <&eth_sleep>;
+	status = "disabled";
+
+	mdio {
+		compatible = "snps,dwmac-mdio";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		eth_phy0: eth_phy0@1 {
+			compatible = "ethernet-phy-id001c.c916";
+			reg = <0x1>;
+		};
+
+		eth_phy1: eth_phy2@4 {
+			compatible = "ethernet-phy-id001c.c816";
+			reg = <0x4>;
+		};
+	};
+};
+
+&gpufreq {
+	vgpu-supply = <&mt6359_vproc2_reg>;
+	vsram_gpu-supply = <&mt6359_vsram_others_reg>;
+};
+
+&hdmi0 {
+	status = "okay";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+
+			hdmi0_in: endpoint {
+				remote-endpoint = <&dpi1_out>;
+			};
+		};
+	};
+};
+
+&hifidsp_audio_ipi {
+	status = "disabled";
+};
+
+&i2c0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c0_pin>;
+	clock-frequency = <400000>;
+	status = "okay";
+};
+
+&i2c1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c1_pin>;
+	clock-frequency = <400000>;
+	status = "okay";
+
+	fusb251@28 {
+		status = "ok";
+		compatible = "fusb251";
+		reg = <0x28>;
+		i2c_num = <1>;
+		i2c_addr = <0x28 0 0 0>;
+		threshold_sbu = <747 960>;
+		threshold_sbuft = <100>;
+		work_interval = <15 30 60>;
+		det_delay = <100 1000>;
+	};
+
+	max20342@35 {
+		status = "ok";
+		compatible = "max20342";
+		reg = <0x35>;
+		i2c_num = <1>;
+		i2c_addr = <0x35 0 0 0>;
+		work_interval = <15 30 60>;
+		det_delay = <300 300>;
+		target_ipu = [01];
+		target_resister = [64];
+		ld_buffer = [56 77];
+		target_voltage_max = [a3];
+		target_adcgroundvth = [04];
+		pinctrl-names = "mosctrl1_init", "mosctrl1_low", "mosctrl1_high",
+		                "mosctrl2_init", "mosctrl2_low", "mosctrl2_high";
+		pinctrl-0 = <&mos_ctrl1_init>;
+		pinctrl-1 = <&mos_ctrl1_low>;
+		pinctrl-2 = <&mos_ctrl1_high>;
+		pinctrl-3 = <&mos_ctrl2_init>;
+		pinctrl-4 = <&mos_ctrl2_low>;
+		pinctrl-5 = <&mos_ctrl2_high>;
+	};
+};
+
+&i2c2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c2_pin>;
+	clock-frequency = <1000000>;
+	status = "okay";
+
+	rt1711h: usb_type_c0@4e {
+		compatible = "mediatek,usb_type_c";
+		reg = <0x4e>;
+		status = "okay";
+		interrupts-extended = <&pio 0 IRQ_TYPE_LEVEL_LOW>;
+
+		port {
+
+			tcpc_typec_usb: endpoint@0 {
+				remote-endpoint = <&ssusb_mux>;
+			};
+		};
+	};
+};
+
+&i2c3 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c3_pin>;
+	clock-frequency = <400000>;
+	status = "okay";
+
+	alsps@53 {
+		compatible = "mediatek,alsps";
+		reg = <0x53>;
+		interrupt-parent = <&pio>;
+		interrupts = <11 IRQ_TYPE_LEVEL_LOW>;
+		debounce = <11 0>;
+		pinctrl-names = "pin_default", "pin_cfg";
+		pinctrl-0 = <&alsps_intpin_default>;
+		pinctrl-1 = <&alsps_intpin_cfg>;
+		status = "okay";
+		i2c_num = <2>;
+		i2c_addr = <0x53 0 0 0>;
+		polling_mode_ps = <0>;
+		polling_mode_als = <1>;
+		power_id = <0xffff>;
+		power_vol = <0>;
+		cal_factoy = <437 475 475 584>;
+		als_level = <0 1 1 7 15 15 100 1000 2000 3000 6000 10000 14000 18000 20000>;
+		als_value = <40 40 90 90 160 160 225 320 640 1280 1280 2600 2600 2600 10240 10240>;
+		ps_threshold_high = <900>;
+		ps_threshold_low = <600>;
+		is_batch_supported_ps = <0>;
+		is_batch_supported_als = <0>;
+	};
+
+	lp8556@2c {
+		compatible = "lp8556";
+		reg = <0x2c>;
+	};
+
+	mp3314@28 {
+		compatible = "mp3314";
+		reg = <0x28>;
+	};
+
+	sy7758@2e {
+		compatible = "sy7758";
+		reg = <0x2e>;
+	};
+
+	bias_ic@3e {
+		compatible = "lcm_bias";
+		reg = <0x3e>;
+	};
+
+	gsensor1: gsensor@4c {
+		compatible = "mediatek,mc3416";
+		reg = <0x4c>;
+		status = "okay";
+		i2c_num = <2>;
+		i2c_addr = <0x4c 0 0 0>;
+		direction = <2>;
+		power_id = <0xffff>;
+		power_vol = <0>;
+		firlen = <0>;
+		is_batch_supported = <0>;
+	};
+
+	audio_switch: was4780@42 {
+		compatible = "willsemi,was4780-i2c";
+		reg = <0x42>;
+#ifdef SUNSTONE_MOISTURE_DETECT
+		pinctrl-names = "mosit_det_on", "mosit_det_off";
+		pinctrl-0 = <&mosit_pins_det_on>;
+		pinctrl-1 = <&mosit_pins_det_off>;
+#endif
+	};
+
+	gsensor2: gsensor@18 {
+		compatible = "mediatek,stk8ba58";
+		reg = <0x18>;
+		status = "okay";
+		i2c_num = <2>;
+		i2c_addr = <0x18 0 0 0>;
+		direction = <2>;
+		power_id = <0xffff>;
+		power_vol = <0>;
+		firlen = <0>;
+		is_batch_supported = <0>;
+	};
+};
+
+&i2c4 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c4_pin>;
+	clock-frequency = <1000000>;
+	status = "okay";
+
+	husb311@4e {
+		compatible = "hynetek,husb311";
+		reg = <0x4e>;
+		status = "okay";
+		interrupt-parent = <&pio>;
+	};
+};
+
+&i2c5 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c5_pin>;
+	clock-frequency = <400000>;
+	status = "okay";
+};
+
+&i2c6 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c6_pin>;
+	clock-frequency = <400000>;
+	status = "okay";
+};
+
+&img_vcore {
+	domain-supply = <&mt6359_vproc1_reg>;
+};
+
+&vmmspm {
+	buck-vmm-supply = <&mt6359_vproc1_reg>;
+	status = "okay";
+};
+
+&ispdvfs {
+	buck-vmm-supply = <&mt6359_vproc1_reg>;
+	status = "okay";
+};
+
+&mdla {
+	status = "okay";
+};
+
+&mdla_devfreq {
+	power_table = <667 583 423 296 189 145 92>;
+	status = "okay";
+};
+
+&mfg0 {
+	domain-supply = <&mt6359_vproc2_reg>;
+};
+
+&mipi_tx_config0 {
+	status = "okay";
+};
+
+&mmc0 {
+	status = "okay";
+	pinctrl-names = "default", "state_uhs";
+	pinctrl-0 = <&mmc0_pins_default>;
+	pinctrl-1 = <&mmc0_pins_uhs>;
+	bus-width = <8>;
+	max-frequency = <200000000>;
+	cap-mmc-highspeed;
+	mmc-hs200-1_8v;
+	mmc-hs400-1_8v;
+	mmc-hs400-enhanced-strobe;
+	supports-cqe;
+	cap-mmc-hw-reset;
+	no-sdio;
+	no-sd;
+	hs400-ds-delay = <83995>;
+	vmmc-supply = <&mt6359_vemc_reg>;
+	vqmmc-supply = <&mt6359_vufs_reg>;
+	non-removable;
+};
+
+&mmc1 {
+	status = "okay";
+	pinctrl-names = "default", "state_uhs";
+	pinctrl-0 = <&mmc1_pins_default>;
+	pinctrl-1 = <&mmc1_pins_uhs>;
+	bus-width = <4>;
+	max-frequency = <200000000>;
+	cap-sd-highspeed;
+	sd-uhs-sdr50;
+	sd-uhs-sdr104;
+	no-mmc;
+	no-sdio;
+	cd-gpios = <&pio 2 GPIO_ACTIVE_HIGH>;
+	vmmc-supply = <&mt6359_vpa_reg>;
+	vqmmc-supply = <&mt6359_vsim1_reg>;
+};
+
+&mt6359_vpa_reg {
+	regulator-max-microvolt = <3100000>;
+};
+
+&mtk_apu_mem_code {
+	status = "okay";
+};
+
+&mtk_apu_mem_data {
+	status = "okay";
+};
+
+&mt6359_vmodem_reg {
+	regulator-always-on;
+};
+
+&mt6359_vrf18_reg {
+	regulator-min-microvolt = <1800000>;
+	regulator-max-microvolt = <1800000>;
+};
+
+&mt6359_vsram_md_reg {
+	regulator-always-on;
+};
+
+&mt6359_vsim2_reg {
+	regulator-min-microvolt = <3000000>;
+};
+
+&wifi_pwrseq {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&wifi_pins_pwrseq>;
+	reset-gpios = <&pio 71 GPIO_ACTIVE_LOW>;
+	post-power-on-delay-ms = <200>;
+};
+
+&mmc2 {
+	status = "okay";
+	pinctrl-names = "default", "state_uhs", "state_eint", "state_dat1", "state_low";
+	pinctrl-0 = <&mmc2_pins_default>;
+	pinctrl-1 = <&mmc2_pins_uhs>;
+	pinctrl-2 = <&mmc2_pins_eint>;
+	pinctrl-3 = <&mmc2_pins_dat1>;
+	pinctrl-4 = <&mmc2_pins_all_low>;
+	eint-gpios = <&pio 172 GPIO_ACTIVE_HIGH>;
+	bus-width = <4>;
+	max-frequency = <200000000>;
+	cap-sd-highspeed;
+	sd-uhs-sdr104;
+	dvfsrc-vcore-supply = <&dvfsrc_vcore>;
+	max-vcore-volt = <725000>;
+	keep-power-in-suspend;
+	cap-sdio-async-int;
+	cap-sdio-irq;
+	no-mmc;
+	no-sd;
+	non-removable;
+	vmmc-supply = <&sdio_fixed_3v3>;
+	vqmmc-supply = <&sdio_fixed_1v8>;
+	mmc-pwrseq = <&wifi_pwrseq>;
+};
+
+&mt6359codec {
+	mediatek,mic-type-0 = <3>;
+	mediatek,mic-type-1 = <1>;
+	mediatek,mic-type-2 = <3>;
+};
+
+&pcie {
+	status = "disabled";
+};
+
+&pio {
+	alsps_intpin_cfg: alspspincfg {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO11__FUNC_B_GPIO11>;
+			slew-rate = <0>;
+			bias-pull-up = <0>;
+		};
+	};
+
+	alsps_intpin_default: alspsdefaultcfg {
+	};
+
+	adsp_uart_pin: adsp_uart_pin {
+
+		adsp_uart_pins {
+			pinmux = <PINMUX_GPIO33__FUNC_O_ADSP_UTXD0>,
+			         <PINMUX_GPIO34__FUNC_I1_ADSP_URXD0>;
+		};
+	};
+
+	aud_pins_default: audiodefault {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO101__FUNC_O_AUD_CLK_MOSI>,
+			         <PINMUX_GPIO102__FUNC_O_AUD_SYNC_MOSI>,
+			         <PINMUX_GPIO103__FUNC_O_AUD_DAT_MOSI0>,
+			         <PINMUX_GPIO104__FUNC_O_AUD_DAT_MOSI1>,
+			         <PINMUX_GPIO105__FUNC_I0_AUD_DAT_MISO0>,
+			         <PINMUX_GPIO106__FUNC_I0_AUD_DAT_MISO1>,
+			         <PINMUX_GPIO121__FUNC_B0_PCM_CLK>,
+			         <PINMUX_GPIO122__FUNC_B0_PCM_SYNC>,
+			         <PINMUX_GPIO123__FUNC_O_PCM_DO>,
+			         <PINMUX_GPIO124__FUNC_I0_PCM_DI>;
+		};
+	};
+
+	aud_pins_extamp_on: audexampon {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO138__FUNC_B_GPIO138>,
+			         <PINMUX_GPIO139__FUNC_B_GPIO139>;
+			output-high;
+			bias-disable;
+		};
+	};
+
+	aud_pins_extamp_off: audexampoff {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO138__FUNC_B_GPIO138>,
+			         <PINMUX_GPIO139__FUNC_B_GPIO139>;
+			output-low;
+			bias-disable;
+		};
+	};
+
+	aud_pins_hp_extamp_on: audhpexampon {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO134__FUNC_B_GPIO134>;
+			output-high;
+			bias-disable;
+		};
+	};
+
+	aud_pins_hp_extamp_off: audhpexampoff {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO134__FUNC_B_GPIO134>;
+			output-low;
+			bias-disable;
+		};
+	};
+
+	eth_default: eth_default {
+
+		txd_pins {
+			pinmux = <PINMUX_GPIO131__FUNC_O_GBE_TXD3>,
+			         <PINMUX_GPIO132__FUNC_O_GBE_TXD2>,
+			         <PINMUX_GPIO133__FUNC_O_GBE_TXD1>,
+			         <PINMUX_GPIO134__FUNC_O_GBE_TXD0>;
+			drive-strength = <8>;
+		};
+
+		cc_pins {
+			pinmux = <PINMUX_GPIO139__FUNC_B0_GBE_TXC>,
+			         <PINMUX_GPIO142__FUNC_O_GBE_TXEN>,
+			         <PINMUX_GPIO141__FUNC_I0_GBE_RXDV>,
+			         <PINMUX_GPIO140__FUNC_I0_GBE_RXC>;
+			drive-strength = <8>;
+		};
+
+		rxd_pins {
+			pinmux = <PINMUX_GPIO135__FUNC_I0_GBE_RXD3>,
+			         <PINMUX_GPIO136__FUNC_I0_GBE_RXD2>,
+			         <PINMUX_GPIO137__FUNC_I0_GBE_RXD1>,
+			         <PINMUX_GPIO138__FUNC_I0_GBE_RXD0>;
+			drive-strength = <8>;
+		};
+
+		mdio_pins {
+			pinmux = <PINMUX_GPIO143__FUNC_O_GBE_MDC>;
+			drive-strength = <8>;
+			input-enable;
+		};
+
+		power_pins {
+			pinmux = <PINMUX_GPIO145__FUNC_B_GPIO145>,
+			         <PINMUX_GPIO146__FUNC_B_GPIO146>;
+			output-high;
+		};
+	};
+
+	eth_sleep: eth_sleep {
+
+		txd_pins {
+			pinmux = <PINMUX_GPIO131__FUNC_B_GPIO131>,
+			         <PINMUX_GPIO132__FUNC_B_GPIO132>,
+			         <PINMUX_GPIO133__FUNC_B_GPIO133>,
+			         <PINMUX_GPIO134__FUNC_B_GPIO134>;
+		};
+
+		cc_pins {
+			pinmux = <PINMUX_GPIO139__FUNC_B_GPIO139>,
+			         <PINMUX_GPIO142__FUNC_B_GPIO142>,
+			         <PINMUX_GPIO141__FUNC_B_GPIO141>,
+			         <PINMUX_GPIO140__FUNC_B_GPIO140>;
+		};
+
+		rxd_pins {
+			pinmux = <PINMUX_GPIO135__FUNC_B_GPIO135>,
+			         <PINMUX_GPIO136__FUNC_B_GPIO136>,
+			         <PINMUX_GPIO137__FUNC_B_GPIO137>,
+			         <PINMUX_GPIO138__FUNC_B_GPIO138>;
+		};
+
+		mdio_pins {
+			pinmux = <PINMUX_GPIO143__FUNC_B_GPIO143>,
+			         <PINMUX_GPIO144__FUNC_B_GPIO144>;
+			input-disable;
+			bias-disable;
+		};
+	};
+
+	i2c0_pin: i2c0_pin {
+
+		pins_bus {
+			pinmux = <PINMUX_GPIO56__FUNC_B1_SDA0>,
+			         <PINMUX_GPIO55__FUNC_B1_SCL0>;
+		};
+	};
+
+	i2c1_pin: i2c1_pin {
+
+		pins_bus {
+			pinmux = <PINMUX_GPIO58__FUNC_B1_SDA1>,
+			         <PINMUX_GPIO57__FUNC_B1_SCL1>;
+			bias-pull-up = <203>;
+		};
+	};
+
+	i2c2_pin: i2c2_pin {
+
+		pins_bus {
+			pinmux = <PINMUX_GPIO60__FUNC_B1_SDA2>,
+			         <PINMUX_GPIO59__FUNC_B1_SCL2>;
+			bias-pull-up = <203>;
+		};
+	};
+
+	i2c3_pin: i2c3_pin {
+
+		pins_bus {
+			pinmux = <PINMUX_GPIO62__FUNC_B1_SDA3>,
+			         <PINMUX_GPIO61__FUNC_B1_SCL3>;
+			bias-pull-up = <203>;
+		};
+	};
+
+	i2c4_pin: i2c4_pin {
+
+		pins_bus {
+			pinmux = <PINMUX_GPIO64__FUNC_B1_SDA4>,
+			         <PINMUX_GPIO63__FUNC_B1_SCL4>;
+			bias-pull-up = <203>;
+		};
+	};
+
+	i2c5_pin: i2c5_pin {
+
+		pins_bus {
+			pinmux = <PINMUX_GPIO66__FUNC_B1_SDA5>,
+			         <PINMUX_GPIO65__FUNC_B1_SCL5>;
+			bias-pull-up = <203>;
+		};
+	};
+
+	i2c6_pin: i2c6_pin {
+
+		pins_bus {
+			pinmux = <PINMUX_GPIO68__FUNC_B1_SDA6>,
+			         <PINMUX_GPIO67__FUNC_B1_SCL6>;
+			bias-pull-up = <203>;
+		};
+	};
+
+	pwm0_gpio_def_cfg: pwm0default {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO29__FUNC_O_DISP_PWM0>;
+			output-high;
+		};
+	};
+
+	panel_pins_default: panel_pins_default {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO25__FUNC_B_GPIO25>,
+			         <PINMUX_GPIO144__FUNC_B_GPIO144>,
+			         <PINMUX_GPIO130__FUNC_B_GPIO130>,
+			         <PINMUX_GPIO129__FUNC_B_GPIO129>,
+			         <PINMUX_GPIO5__FUNC_B_GPIO5>;
+		};
+	};
+
+	te_pins_default: te_pins_default {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO26__FUNC_I0_DSI_TE>;
+			input-enable;
+		};
+	};
+
+	mmc0_pins_default: mmc0default {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO161__FUNC_B1_MSDC0_DAT0>,
+			         <PINMUX_GPIO160__FUNC_B1_MSDC0_DAT1>,
+			         <PINMUX_GPIO159__FUNC_B1_MSDC0_DAT2>,
+			         <PINMUX_GPIO158__FUNC_B1_MSDC0_DAT3>,
+			         <PINMUX_GPIO154__FUNC_B1_MSDC0_DAT4>,
+			         <PINMUX_GPIO153__FUNC_B1_MSDC0_DAT5>,
+			         <PINMUX_GPIO152__FUNC_B1_MSDC0_DAT6>,
+			         <PINMUX_GPIO151__FUNC_B1_MSDC0_DAT7>,
+			         <PINMUX_GPIO156__FUNC_B1_MSDC0_CMD>;
+			input-enable;
+			drive-strength = <6>;
+			bias-pull-up = <101>;
+		};
+
+		pins_clk {
+			pinmux = <PINMUX_GPIO157__FUNC_B1_MSDC0_CLK>;
+			drive-strength = <6>;
+			bias-pull-down = <102>;
+		};
+
+		pins_rst {
+			pinmux = <PINMUX_GPIO155__FUNC_O_MSDC0_RSTB>;
+			drive-strength = <6>;
+			bias-pull-up = <101>;
+		};
+	};
+
+	mmc0_pins_uhs: mmc0uhs {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO161__FUNC_B1_MSDC0_DAT0>,
+			         <PINMUX_GPIO160__FUNC_B1_MSDC0_DAT1>,
+			         <PINMUX_GPIO159__FUNC_B1_MSDC0_DAT2>,
+			         <PINMUX_GPIO158__FUNC_B1_MSDC0_DAT3>,
+			         <PINMUX_GPIO154__FUNC_B1_MSDC0_DAT4>,
+			         <PINMUX_GPIO153__FUNC_B1_MSDC0_DAT5>,
+			         <PINMUX_GPIO152__FUNC_B1_MSDC0_DAT6>,
+			         <PINMUX_GPIO151__FUNC_B1_MSDC0_DAT7>,
+			         <PINMUX_GPIO156__FUNC_B1_MSDC0_CMD>;
+			input-enable;
+			drive-strength = <8>;
+			bias-pull-up = <101>;
+		};
+
+		pins_clk {
+			pinmux = <PINMUX_GPIO157__FUNC_B1_MSDC0_CLK>;
+			drive-strength = <8>;
+			bias-pull-down = <102>;
+		};
+
+		pins_ds {
+			pinmux = <PINMUX_GPIO162__FUNC_B0_MSDC0_DSL>;
+			drive-strength = <8>;
+			bias-pull-down = <102>;
+		};
+
+		pins_rst {
+			pinmux = <PINMUX_GPIO155__FUNC_O_MSDC0_RSTB>;
+			drive-strength = <8>;
+			bias-pull-up = <101>;
+		};
+	};
+
+	mmc1_pins_default: mmc1-pins-default {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO163__FUNC_B1_MSDC1_CMD>,
+			         <PINMUX_GPIO165__FUNC_B1_MSDC1_DAT0>,
+			         <PINMUX_GPIO166__FUNC_B1_MSDC1_DAT1>,
+			         <PINMUX_GPIO167__FUNC_B1_MSDC1_DAT2>,
+			         <PINMUX_GPIO168__FUNC_B1_MSDC1_DAT3>;
+			input-enable;
+			drive-strength = <10>;
+			bias-pull-up = <101>;
+		};
+
+		pins_clk {
+			pinmux = <PINMUX_GPIO164__FUNC_B1_MSDC1_CLK>;
+			drive-strength = <10>;
+			bias-pull-down = <102>;
+		};
+
+		pins_insert {
+			pinmux = <PINMUX_GPIO2__FUNC_B_GPIO2>;
+			bias-pull-up;
+		};
+	};
+
+	mmc1_pins_uhs: mmc1-pins-uhs {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO163__FUNC_B1_MSDC1_CMD>,
+			         <PINMUX_GPIO165__FUNC_B1_MSDC1_DAT0>,
+			         <PINMUX_GPIO166__FUNC_B1_MSDC1_DAT1>,
+			         <PINMUX_GPIO167__FUNC_B1_MSDC1_DAT2>,
+			         <PINMUX_GPIO168__FUNC_B1_MSDC1_DAT3>;
+			input-enable;
+			drive-strength = <10>;
+			bias-pull-up = <101>;
+		};
+
+		pins_clk {
+			pinmux = <PINMUX_GPIO164__FUNC_B1_MSDC1_CLK>;
+			drive-strength = <6>;
+			bias-pull-down = <102>;
+		};
+	};
+
+	mmc2_pins_default: mmc2default {
+
+		pins_clk {
+			pinmux = <PINMUX_GPIO170__FUNC_B1_MSDC2_CLK>;
+			drive-strength = <6>;
+			bias-pull-down = <102>;
+		};
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO169__FUNC_B1_MSDC2_CMD>,
+			         <PINMUX_GPIO171__FUNC_B1_MSDC2_DAT0>,
+			         <PINMUX_GPIO172__FUNC_B1_MSDC2_DAT1>,
+			         <PINMUX_GPIO173__FUNC_B1_MSDC2_DAT2>,
+			         <PINMUX_GPIO174__FUNC_B1_MSDC2_DAT3>;
+			input-enable;
+			drive-strength = <6>;
+			bias-pull-up = <101>;
+		};
+
+		pins_wow {
+			pinmux = <PINMUX_GPIO70__FUNC_B_GPIO70>;
+			input-enable;
+			bias-disable;
+		};
+	};
+
+	mmc2_pins_uhs: mmc2 {
+
+		pins_clk {
+			pinmux = <PINMUX_GPIO170__FUNC_B1_MSDC2_CLK>;
+			drive-strength = <6>;
+			bias-pull-down = <102>;
+		};
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO169__FUNC_B1_MSDC2_CMD>,
+			         <PINMUX_GPIO171__FUNC_B1_MSDC2_DAT0>,
+			         <PINMUX_GPIO172__FUNC_B1_MSDC2_DAT1>,
+			         <PINMUX_GPIO173__FUNC_B1_MSDC2_DAT2>,
+			         <PINMUX_GPIO174__FUNC_B1_MSDC2_DAT3>;
+			input-enable;
+			drive-strength = <6>;
+			bias-pull-up = <101>;
+		};
+	};
+
+	mmc2_pins_eint: dat1_eint {
+
+		pins_dat1 {
+			pinmux = <PINMUX_GPIO172__FUNC_B_GPIO172>;
+			input-enable;
+			bias-pull-up = <101>;
+		};
+	};
+
+	mmc2_pins_dat1: sdio_dat1 {
+
+		pins_dat1 {
+			pinmux = <PINMUX_GPIO172__FUNC_B1_MSDC2_DAT1>;
+			input-enable;
+			drive-strength = <6>;
+			bias-pull-up = <101>;
+		};
+	};
+
+	wifi_pins_pwrseq: wifipwrseq {
+
+		pins_wifi_enable {
+			pinmux = <PINMUX_GPIO71__FUNC_B_GPIO71>;
+			output-low;
+		};
+	};
+
+	mmc2_pins_all_low: sdio_low {
+
+		pins_clk {
+			pinmux = <PINMUX_GPIO170__FUNC_B_GPIO170>;
+			output-low;
+		};
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO169__FUNC_B_GPIO169>,
+			         <PINMUX_GPIO171__FUNC_B_GPIO171>,
+			         <PINMUX_GPIO172__FUNC_B_GPIO172>,
+			         <PINMUX_GPIO173__FUNC_B_GPIO173>,
+			         <PINMUX_GPIO174__FUNC_B_GPIO174>;
+			output-low;
+		};
+	};
+
+	kpd_gpio: kpd_gpio {
+
+		pins_cols {
+			pinmux = <PINMUX_GPIO42__FUNC_B1_KPCOL0>;
+			input-enable;
+			bias-pull-up = <101>;
+		};
+	};
+
+	spi_pins_0: spi0 {
+
+		pins_spi {
+			pinmux = <PINMUX_GPIO69__FUNC_O_SPIM0_CSB>,
+			         <PINMUX_GPIO70__FUNC_O_SPIM0_CLK>,
+			         <PINMUX_GPIO71__FUNC_B0_SPIM0_MOSI>,
+			         <PINMUX_GPIO72__FUNC_B0_SPIM0_MISO>,
+			         <PINMUX_GPIO73__FUNC_B0_SPIM0_MIO2>,
+			         <PINMUX_GPIO74__FUNC_B0_SPIM0_MIO3>;
+			bias-disable;
+		};
+	};
+
+	spi_pins_1: spi1 {
+
+		pins_spi {
+			pinmux = <PINMUX_GPIO75__FUNC_O_SPIM1_CSB>,
+			         <PINMUX_GPIO76__FUNC_O_SPIM1_CLK>,
+			         <PINMUX_GPIO77__FUNC_B0_SPIM1_MOSI>,
+			         <PINMUX_GPIO78__FUNC_B0_SPIM1_MISO>;
+			bias-disable;
+		};
+	};
+
+	spi_pins_2: spi2 {
+
+		pins_spi {
+			pinmux = <PINMUX_GPIO79__FUNC_O_SPIM2_CSB>,
+			         <PINMUX_GPIO80__FUNC_O_SPIM2_CLK>,
+			         <PINMUX_GPIO81__FUNC_B0_SPIM2_MOSI>,
+			         <PINMUX_GPIO82__FUNC_B0_SPIM2_MISO>;
+			bias-disable;
+		};
+	};
+
+	uart0_pin: uart0_pin {
+
+		uart0_pins {
+			pinmux = <PINMUX_GPIO31__FUNC_O_UTXD0>,
+			         <PINMUX_GPIO32__FUNC_I1_URXD0>;
+			bias-pull-up;
+		};
+	};
+
+	usb_default: usbdefault {
+
+		vbus_pins {
+			pinmux = <PINMUX_GPIO84__FUNC_B_GPIO84>;
+			bias-disable;
+			output-low;
+		};
+	};
+
+	ld_ctrl1_init: ldctrl1_init {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO33__FUNC_B_GPIO33>;
+			bias-disable;
+			output-high;
+		};
+	};
+
+	ld_ctrl1_low: ldctrl1_low {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO33__FUNC_B_GPIO33>;
+			bias-disable;
+			output-low;
+		};
+	};
+
+	ld_ctrl1_high: ldctrl1_high {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO33__FUNC_B_GPIO33>;
+			bias-disable;
+			output-high;
+		};
+	};
+
+	ld_detection1_init: lddetection1_init {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO127__FUNC_B_GPIO127>;
+			bias-disable;
+			output-high;
+		};
+	};
+
+	ld_detection1_low: lddetection1_low {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO127__FUNC_B_GPIO127>;
+			bias-disable;
+			output-low;
+		};
+	};
+
+	ld_detection1_high: lddetection1_high {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO127__FUNC_B_GPIO127>;
+			bias-disable;
+			output-high;
+		};
+	};
+
+	ld_detection2_init: lddetection2_init {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO128__FUNC_B_GPIO128>;
+			bias-disable;
+			output-high;
+		};
+	};
+
+	ld_detection2_low: lddetection2_low {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO128__FUNC_B_GPIO128>;
+			bias-disable;
+			output-low;
+		};
+	};
+
+	ld_detection2_high: lddetection2_high {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO128__FUNC_B_GPIO128>;
+			bias-disable;
+			output-high;
+		};
+	};
+
+	public_adc_bat_id: pubadc_bat_id {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO34__FUNC_B_GPIO34>;
+			bias-disable;
+			output-low;
+		};
+	};
+
+	public_adc_liquid: pubadc_liquid {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO34__FUNC_B_GPIO34>;
+			bias-disable;
+			output-high;
+		};
+	};
+
+	mos_ctrl1_init: mosctrl1_init {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO125__FUNC_B_GPIO125>;
+			bias-disable;
+			output-low;
+		};
+	};
+
+	mos_ctrl1_low: mosctrl1_low {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO125__FUNC_B_GPIO125>;
+			bias-disable;
+			output-low;
+		};
+	};
+
+	mos_ctrl1_high: mosctrl1_high {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO125__FUNC_B_GPIO125>;
+			bias-disable;
+			output-high;
+		};
+	};
+
+	mos_ctrl2_init: mosctrl2_init {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO126__FUNC_B_GPIO126>;
+			bias-disable;
+			output-low;
+		};
+	};
+
+	mos_ctrl2_low: mosctrl2_low {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO126__FUNC_B_GPIO126>;
+			bias-disable;
+			output-low;
+		};
+	};
+
+	mos_ctrl2_high: mosctrl2_high {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO126__FUNC_B_GPIO126>;
+			bias-disable;
+			output-high;
+		};
+	};
+
+	pogo_extcon_detect_disable: pogo_extcon_detect_disable {
+
+		detect_pin {
+			pinmux = <PINMUX_GPIO133__FUNC_B_GPIO133>;
+			output-low;
+		};
+	};
+
+	pogo_extcon_detect_enable: pogo_extcon_detect_enable {
+
+		detect_pin {
+			pinmux = <PINMUX_GPIO133__FUNC_B_GPIO133>;
+			output-high;
+		};
+	};
+
+	fingerprint_irq: fingerprint_irq {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO9__FUNC_B_GPIO9>;
+			bias-disable;
+		};
+	};
+
+	fingerprint_power_high: state_power_high {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO113__FUNC_B_GPIO113>;
+			output-high;
+			bias-disable;
+		};
+	};
+
+	fingerprint_power_low: state_power_low {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO113__FUNC_B_GPIO113>;
+			output-low;
+			bias-disable;
+		};
+	};
+
+	fingerprint_reset_high: state_reset_high {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO117__FUNC_B_GPIO117>;
+			output-high;
+			bias-disable;
+		};
+	};
+
+	fingerprint_reset_low: state_reset_low {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO117__FUNC_B_GPIO117>;
+			output-low;
+			bias-disable;
+		};
+	};
+};
+
+&pwmleds {
+	status = "okay";
+};
+
+&rt1711_typec {
+	status = "okay";
+};
+
+&mtk_gauge {
+	io-channels = <&pmic_auxadc 3 &pmic_auxadc 0 &pmic_auxadc 14 &pmic_auxadc 15
+	               &pmic_auxadc 16 &auxadc 1>;
+	io-channel-names = "pmic_battery_temp", "pmic_battery_voltage",
+	                   "pmic_bif_voltage", "pmic_ptim_voltage", "pmic_ptim_r",
+	                   "pmic_battery_id";
+	charger = <&rt9467_chg>;
+	battery_id_volt_max = <1450>;
+	battery_id_volt_min = <700>;
+	battery_id_method = <2>;
+	MIN_BATTERY_TEMP = <(-10)>;
+	bat_id_volt_thres = <999 1450 0xffffffff>;
+	Q_MAX_T0 = <7370 7370>;
+	Q_MAX_T1 = <7470 7470>;
+	Q_MAX_T2 = <7372 7440>;
+	Q_MAX_T3 = <7160 7320>;
+	Q_MAX_T4 = <7000 7000>;
+	Q_MAX_H_CURRENT_T0 = <7370 7370>;
+	Q_MAX_H_CURRENT_T1 = <7470 7470>;
+	Q_MAX_H_CURRENT_T2 = <7372 7440>;
+	Q_MAX_H_CURRENT_T3 = <7160 7320>;
+	Q_MAX_H_CURRENT_T4 = <7000 7000>;
+	battery0_profile_name = "ATL";
+	battery0_profile_t0_num = <100>;
+	battery0_profile_t0_col = <3>;
+	battery0_profile_t0 = <0 44117 610 791 43982 607 1582 43863
+	                       615 2374 43751 617 3165 43643 627 3956
+	                       43534 623 4747 43425 627 5538 43316 628
+	                       6330 43205 630 7121 43093 632 7912 42979
+	                       632 8703 42864 635 9494 42746 635 10285
+	                       42629 635 11077 42510 635 11868 42392 638
+	                       12659 42275 642 13450 42157 644 14241 42039
+	                       644 15033 41922 647 15824 41805 648 16615
+	                       41691 651 17406 41577 650 18197 41464 651
+	                       18989 41352 653 19780 41242 653 20571 41134
+	                       657 21362 41026 654 22153 40921 663 22945
+	                       40816 662 23736 40715 668 24527 40614 670
+	                       25318 40515 674 26109 40418 676 26901 40324
+	                       686 27692 40232 694 28483 40140 698 29274
+	                       40050 707 30065 39960 715 30856 39870 728
+	                       31648 39776 743 32439 39669 741 33230 39528
+	                       700 34021 39373 658 34812 39250 641 35604
+	                       39155 646 36395 39072 640 37186 39000 643
+	                       37977 38932 645 38768 38867 643 39560 38805
+	                       645 40351 38745 643 41142 38688 642 41933
+	                       38633 643 42724 38579 646 43516 38528 645
+	                       44307 38479 649 45098 38432 648 45889 38385
+	                       651 46680 38341 653 47472 38299 659 48263
+	                       38257 662 49054 38217 664 49845 38179 667
+	                       50636 38142 670 51427 38106 676 52219 38070
+	                       676 53010 38035 684 53801 37995 686 54592
+	                       37944 677 55383 37865 641 56175 37778 635
+	                       56966 37712 643 57757 37663 650 58548 37613
+	                       648 59339 37561 649 60131 37508 644 60922
+	                       37458 646 61713 37414 648 62504 37372 652
+	                       63295 37326 655 64087 37268 652 64878 37199
+	                       646 65669 37130 644 66460 37071 651 67251
+	                       37003 654 68042 36918 645 68834 36865 634
+	                       69625 36852 641 70416 36841 649 71207 36830
+	                       658 71998 36815 675 72790 36782 688 73581
+	                       36698 684 74372 36416 666 75163 36002 684
+	                       75954 35470 711 76746 34794 733 77537 33897
+	                       794 78328 32448 1031>;
+	battery0_profile_t1_num = <100>;
+	battery0_profile_t1_col = <3>;
+	battery0_profile_t1 = <0 44131 770 791 44015 766 1582 43906
+	                       769 2374 43803 769 3165 43698 770 3956
+	                       43595 770 4747 43489 768 5538 43382 770
+	                       6330 43272 770 7121 43160 771 7912 43046
+	                       771 8703 42929 774 9494 42811 770 10285
+	                       42692 774 11077 42572 771 11868 42451 774
+	                       12659 42332 778 13450 42211 775 14241 42091
+	                       778 15033 41971 778 15824 41853 779 16615
+	                       41736 783 17406 41620 786 18197 41505 786
+	                       18989 41391 792 19780 41278 792 20571 41167
+	                       798 21362 41060 803 22153 40951 805 22945
+	                       40845 811 23736 40741 815 24527 40638 823
+	                       25318 40537 829 26109 40439 838 26901 40342
+	                       848 27692 40245 861 28483 40152 869 29274
+	                       40058 886 30065 39965 894 30856 39871 914
+	                       31648 39769 914 32439 39652 902 33230 39514
+	                       857 34021 39368 805 34812 39241 768 35604
+	                       39139 759 36395 39052 754 37186 38977 754
+	                       37977 38906 751 38768 38840 750 39560 38779
+	                       754 40351 38721 755 41142 38662 753 41933
+	                       38610 756 42724 38556 755 43516 38507 758
+	                       44307 38458 760 45098 38413 763 45889 38368
+	                       765 46680 38324 762 47472 38284 770 48263
+	                       38243 772 49054 38206 775 49845 38170 782
+	                       50636 38135 785 51427 38101 794 52219 38066
+	                       792 53010 38035 801 53801 38001 802 54592
+	                       37963 799 55383 37919 786 56175 37867 767
+	                       56966 37817 764 57757 37771 760 58548 37724
+	                       758 59339 37673 754 60131 37622 750 60922
+	                       37578 754 61713 37537 755 62504 37496 759
+	                       63295 37448 756 64087 37389 756 64878 37320
+	                       752 65669 37260 752 66460 37202 758 67251
+	                       37130 762 68042 37042 751 68834 36999 754
+	                       69625 36984 755 70416 36973 765 71207 36959
+	                       771 71998 36942 791 72790 36909 805 73581
+	                       36799 802 74372 36488 788 75163 36018 809
+	                       75954 35424 842 76746 34705 901 77537 33641
+	                       1048 78328 32228 1408>;
+	battery0_profile_t2_num = <100>;
+	battery0_profile_t2_col = <3>;
+	battery0_profile_t2 = <0 44116 1197 791 43994 1205 1582 43887
+	                       1209 2374 43782 1204 3165 43679 1200 3956
+	                       43572 1190 4747 43464 1185 5538 43354 1179
+	                       6330 43240 1175 7121 43124 1174 7912 43002
+	                       1166 8703 42880 1162 9494 42756 1158 10285
+	                       42631 1151 11077 42504 1148 11868 42380 1148
+	                       12659 42253 1145 13450 42126 1139 14241 42002
+	                       1143 15033 41878 1138 15824 41755 1137 16615
+	                       41633 1140 17406 41512 1140 18197 41394 1145
+	                       18989 41276 1148 19780 41159 1151 20571 41044
+	                       1156 21362 40931 1162 22153 40819 1163 22945
+	                       40711 1178 23736 40604 1184 24527 40497 1193
+	                       25318 40393 1203 26109 40290 1216 26901 40189
+	                       1228 27692 40087 1241 28483 39983 1249 29274
+	                       39874 1258 30065 39755 1247 30856 39619 1208
+	                       31648 39475 1158 32439 39336 1106 33230 39217
+	                       1078 34021 39115 1062 34812 39025 1051 35604
+	                       38946 1048 36395 38873 1050 37186 38804 1046
+	                       37977 38738 1047 38768 38676 1048 39560 38617
+	                       1050 40351 38560 1053 41142 38505 1050 41933
+	                       38453 1060 42724 38402 1058 43516 38353 1063
+	                       44307 38307 1070 45098 38262 1075 45889 38219
+	                       1076 46680 38178 1085 47472 38138 1089 48263
+	                       38100 1092 49054 38064 1097 49845 38028 1100
+	                       50636 37995 1110 51427 37961 1108 52219 37929
+	                       1113 53010 37897 1112 53801 37863 1112 54592
+	                       37825 1108 55383 37781 1093 56175 37731 1082
+	                       56966 37678 1078 57757 37629 1079 58548 37584
+	                       1076 59339 37544 1084 60131 37495 1090 60922
+	                       37436 1092 61713 37365 1096 62504 37300 1101
+	                       63295 37241 1112 64087 37162 1117 64878 37065
+	                       1118 65669 37017 1129 66460 36995 1139 67251
+	                       36976 1151 68042 36958 1171 68834 36933 1197
+	                       69625 36887 1231 70416 36740 1258 71207 36359
+	                       1260 71998 35800 1312 72790 35076 1407 73581
+	                       34037 1570 74372 30658 3291 75163 30658 3291
+	                       75954 30658 3291 76746 30658 3291 77537 30658
+	                       3291 78328 30658 3291>;
+	battery0_profile_t3_num = <100>;
+	battery0_profile_t3_col = <3>;
+	battery0_profile_t3 = <0 44168 1917 791 44027 1922 1582 43910
+	                       1926 2374 43802 1920 3165 43695 1911 3956
+	                       43589 1900 4747 43482 1890 5538 43372 1878
+	                       6330 43258 1865 7121 43142 1853 7912 43023
+	                       1841 8703 42902 1829 9494 42778 1813 10285
+	                       42653 1800 11077 42529 1797 11868 42403 1786
+	                       12659 42277 1781 13450 42152 1775 14241 42027
+	                       1769 15033 41901 1756 15824 41779 1756 16615
+	                       41656 1753 17406 41536 1751 18197 41415 1750
+	                       18989 41297 1750 19780 41179 1752 20571 41064
+	                       1755 21362 40949 1757 22153 40835 1757 22945
+	                       40724 1765 23736 40616 1778 24527 40506 1781
+	                       25318 40400 1795 26109 40291 1800 26901 40184
+	                       1806 27692 40076 1812 28483 39964 1812 29274
+	                       39846 1804 30065 39719 1777 30856 39585 1736
+	                       31648 39451 1694 32439 39323 1653 33230 39210
+	                       1629 34021 39106 1610 34812 39014 1602 35604
+	                       38932 1596 36395 38855 1596 37186 38784 1595
+	                       37977 38717 1598 38768 38652 1600 39560 38592
+	                       1605 40351 38534 1613 41142 38478 1615 41933
+	                       38425 1623 42724 38373 1634 43516 38323 1642
+	                       44307 38274 1646 45098 38230 1660 45889 38185
+	                       1667 46680 38143 1674 47472 38103 1683 48263
+	                       38066 1698 49054 38028 1706 49845 37995 1720
+	                       50636 37961 1730 51427 37930 1735 52219 37899
+	                       1744 53010 37872 1757 53801 37843 1768 54592
+	                       37816 1778 55383 37786 1784 56175 37753 1793
+	                       56966 37711 1794 57757 37665 1799 58548 37617
+	                       1808 59339 37572 1831 60131 37521 1855 60922
+	                       37460 1883 61713 37387 1908 62504 37316 1944
+	                       63295 37249 1984 64087 37173 2032 64878 37075
+	                       2085 65669 36996 2144 66460 36953 2215 67251
+	                       36922 2313 68042 36890 2435 68834 36854 2597
+	                       69625 36800 2827 70416 36692 3125 71207 36406
+	                       3484 71998 35903 4041 72790 34759 6033 73581
+	                       33934 8437 74372 33934 8437 75163 33934 8437
+	                       75954 33934 8437 76746 33934 8437 77537 33934
+	                       8437 78328 33934 8437>;
+	battery0_profile_t4_num = <100>;
+	battery0_profile_t4_col = <3>;
+	battery0_profile_t4 = <0 44210 4210 791 44034 4236 1582 43894
+	                       4262 2374 43767 4254 3165 43648 4241 3956
+	                       43534 4230 4747 43416 4204 5538 43301 4183
+	                       6330 43184 4160 7121 43067 4144 7912 42946
+	                       4113 8703 42827 4098 9494 42704 4070 10285
+	                       42583 4052 11077 42459 4025 11868 42336 3999
+	                       12659 42213 3986 13450 42091 3968 14241 41967
+	                       3947 15033 41846 3934 15824 41727 3921 16615
+	                       41605 3905 17406 41487 3895 18197 41369 3888
+	                       18989 41252 3883 19780 41136 3875 20571 41021
+	                       3873 21362 40907 3870 22153 40793 3866 22945
+	                       40683 3876 23736 40570 3875 24527 40458 3875
+	                       25318 40346 3874 26109 40234 3873 26901 40118
+	                       3862 27692 40003 3857 28483 39884 3838 29274
+	                       39760 3810 30065 39637 3778 30856 39511 3742
+	                       31648 39390 3708 32439 39275 3683 33230 39169
+	                       3669 34021 39068 3655 34812 38978 3652 35604
+	                       38892 3648 36395 38814 3657 37186 38740 3662
+	                       37977 38671 3674 38768 38606 3689 39560 38545
+	                       3705 40351 38485 3721 41142 38428 3739 41933
+	                       38375 3765 42724 38322 3780 43516 38272 3803
+	                       44307 38226 3832 45098 38180 3857 45889 38137
+	                       3883 46680 38096 3912 47472 38059 3946 48263
+	                       38021 3970 49054 37989 4006 49845 37959 4040
+	                       50636 37932 0xff0 51427 37908 4128 52219 37886
+	                       4178 53010 37863 4233 53801 37840 4293 54592
+	                       37815 4354 55383 37789 4425 56175 37760 4495
+	                       56966 37726 4580 57757 37690 4669 58548 37648
+	                       4770 59339 37601 4884 60131 37549 5013 60922
+	                       37490 5155 61713 37423 5320 62504 37349 5498
+	                       63295 37274 5703 64087 37197 5950 64878 37115
+	                       6209 65669 37026 6488 66460 36944 6794 67251
+	                       36883 7164 68042 36832 7585 68834 36790 8106
+	                       69625 36741 8741 70416 36681 9564 71207 36572
+	                       10691 71998 36361 12299 72790 36155 13718 73581
+	                       36155 13718 74372 36155 13718 75163 36155 13718
+	                       75954 36155 13718 76746 36155 13718 77537 36155
+	                       13718 78328 36155 13718>;
+	battery1_profile_name = "LWN";
+	battery1_profile_t0_num = <100>;
+	battery1_profile_t0_col = <3>;
+	battery1_profile_t0 = <0 44117 610 790 43982 667 1580 43862
+	                       676 2369 43750 679 3159 43642 690 3949
+	                       43533 685 4739 43424 690 5528 43315 690
+	                       6318 43203 693 7108 43091 695 7898 42976
+	                       696 8688 42861 698 9477 42743 698 10267
+	                       42626 699 11057 42507 699 11847 42388 702
+	                       12636 42271 707 13426 42152 708 14216 42034
+	                       709 15006 41917 712 15796 41800 712 16585
+	                       41686 716 17375 41571 715 18165 41458 716
+	                       18955 41346 718 19744 41236 719 20534 41128
+	                       723 21324 41019 719 22114 40914 729 22904
+	                       40809 728 23693 40708 735 24483 40607 737
+	                       25273 40508 741 26063 40411 745 26852 40317
+	                       755 27642 40224 764 28432 40132 768 29222
+	                       40042 778 30012 39953 788 30801 39862 803
+	                       31591 39768 818 32381 39656 811 33171 39513
+	                       765 33960 39360 721 34750 39239 705 35540
+	                       39146 710 36330 39064 704 37120 38993 708
+	                       37909 38925 710 38699 38860 708 39489 38798
+	                       710 40279 38738 708 41068 38681 706 41858
+	                       38626 709 42648 38573 710 43438 38522 710
+	                       44228 38472 714 45017 38425 712 45807 38379
+	                       717 46597 38335 719 47387 38293 726 48177
+	                       38252 730 48966 38211 730 49756 38174 735
+	                       50546 38137 738 51336 38101 745 52125 38064
+	                       745 52915 38029 755 53705 37988 755 54495
+	                       37934 739 55285 37850 704 56074 37765 699
+	                       56864 37703 708 57654 37655 718 58444 37605
+	                       714 59233 37552 713 60023 37499 709 60813
+	                       37449 711 61603 37406 713 62393 37364 719
+	                       63182 37315 720 63972 37257 717 64762 37185
+	                       709 65552 37118 709 66341 37059 716 67131
+	                       36988 719 67921 36901 704 68711 36861 698
+	                       69501 36850 707 70290 36839 716 71080 36828
+	                       726 71870 36809 746 72660 36773 761 73449
+	                       36652 746 74239 36335 734 75029 35893 759
+	                       75819 35338 789 76609 34595 817 77398 33530
+	                       898 78188 32248 1134>;
+	battery1_profile_t1_num = <100>;
+	battery1_profile_t1_col = <3>;
+	battery1_profile_t1 = <0 44131 770 790 44015 842 1580 43907
+	                       846 2369 43804 846 3159 43700 847 3949
+	                       43597 847 4739 43492 845 5528 43385 847
+	                       6318 43275 847 7108 43164 849 7898 43051
+	                       848 8688 42934 851 9477 42816 846 10267
+	                       42698 851 11057 42578 849 11847 42457 851
+	                       12636 42339 855 13426 42218 852 14216 42099
+	                       856 15006 41979 855 15796 41862 857 16585
+	                       41745 861 17375 41630 865 18165 41514 865
+	                       18955 41401 870 19744 41288 871 20534 41178
+	                       878 21324 41070 882 22114 40962 885 22904
+	                       40856 891 23693 40752 894 24483 40649 905
+	                       25273 40549 910 26063 40450 921 26852 40353
+	                       931 27642 40258 945 28432 40164 953 29222
+	                       40071 972 30012 39978 982 30801 39884 1004
+	                       31591 39784 1006 32381 39672 997 33171 39536
+	                       951 33960 39390 893 34750 39260 850 35540
+	                       39154 835 36330 39066 830 37120 38990 830
+	                       37909 38918 827 38699 38852 826 39489 38790
+	                       828 40279 38732 832 41068 38673 829 41858
+	                       38620 830 42648 38566 831 43438 38517 832
+	                       44228 38468 835 45017 38422 839 45807 38378
+	                       840 46597 38334 840 47387 38293 847 48177
+	                       38252 848 48966 38214 852 49756 38178 858
+	                       50546 38142 860 51336 38109 872 52125 38075
+	                       871 52915 38043 879 53705 38009 882 54495
+	                       37973 880 55285 37931 869 56074 37880 847
+	                       56864 37830 840 57654 37784 835 58444 37737
+	                       834 59233 37687 831 60023 37636 826 60813
+	                       37590 829 61603 37548 829 62393 37509 835
+	                       63182 37463 832 63972 37408 830 64762 37340
+	                       828 65552 37277 827 66341 37220 832 67131
+	                       37155 837 67921 37066 829 68711 37008 827
+	                       69501 36988 830 70290 36976 838 71080 36964
+	                       844 71870 36949 863 72660 36922 879 73449
+	                       36857 891 74239 36618 863 75029 36197 881
+	                       75819 35646 912 76609 34938 961 77398 34013
+	                       1226 78188 32228 1549>;
+	battery1_profile_t2_num = <100>;
+	battery1_profile_t2_col = <3>;
+	battery1_profile_t2 = <0 44116 1260 790 43913 1229 1580 43805
+	                       1233 2369 43700 1227 3159 43596 1223 3949
+	                       43488 1210 4739 43379 1204 5528 43268 1198
+	                       6318 43154 1192 7108 43036 1192 7898 42913
+	                       1180 8688 42790 1177 9477 42665 1170 10267
+	                       42539 1163 11057 42411 1159 11847 42286 1159
+	                       12636 42158 1156 13426 42031 1149 14216 41906
+	                       1152 15006 41781 1148 15796 41656 1145 16585
+	                       41535 1152 17375 41413 1150 18165 41294 1157
+	                       18955 41175 1161 19744 41058 1165 20534 40943
+	                       1171 21324 40828 1177 22114 40717 1182 22904
+	                       40608 1199 23693 40500 1205 24483 40393 1218
+	                       25273 40288 1228 26063 40185 1246 26852 40084
+	                       1261 27642 39980 1275 28432 39875 1287 29222
+	                       39764 1292 30012 39637 1268 30801 39498 1216
+	                       31591 39352 1151 32381 39219 1096 33171 39104
+	                       1068 33960 39006 1049 34750 38918 1041 35540
+	                       38840 1039 36330 38769 1037 37120 38701 1037
+	                       37909 38636 1037 38699 38574 1038 39489 38517
+	                       1044 40279 38458 1041 41068 38405 1046 41858
+	                       38353 1053 42648 38303 1057 43438 38254 1056
+	                       44228 38208 1069 45017 38164 1072 45807 38121
+	                       1075 46597 38081 1087 47387 38041 1089 48177
+	                       38004 1097 48966 37967 1099 49756 37933 1105
+	                       50546 37898 1108 51336 37866 1116 52125 37833
+	                       1114 52915 37800 1117 53705 37765 1115 54495
+	                       37723 1103 55285 37676 1084 56074 37624 1079
+	                       56864 37570 1071 57654 37525 1076 58444 37484
+	                       1082 59233 37438 1085 60023 37384 1092 60813
+	                       37315 1092 61603 37246 1100 62393 37186 1110
+	                       63182 37118 1121 63972 37024 1122 64762 36950
+	                       1139 65552 36923 1144 66341 36903 1156 67131
+	                       36886 1179 67921 36863 1206 68711 36828 1245
+	                       69501 36738 1291 70290 36431 1287 71080 35929
+	                       1329 71870 35257 1430 72660 34337 1592 73449
+	                       32871 1970 74239 30578 3754 75029 30578 3754
+	                       75819 30578 3754 76609 30578 3754 77398 30578
+	                       3754 78188 30578 3754>;
+	battery1_profile_t3_num = <100>;
+	battery1_profile_t3_col = <3>;
+	battery1_profile_t3 = <0 44168 1981 790 43863 1910 1580 43744
+	                       1913 2369 43633 1905 3159 43523 1895 3949
+	                       43413 1880 4739 43303 1867 5528 43188 1853
+	                       6318 43071 1835 7108 42950 1823 7898 42827
+	                       1806 8688 42701 1790 9477 42573 1770 10267
+	                       42445 1757 11057 42317 1755 11847 42186 1738
+	                       12636 42058 1734 13426 41929 1725 14216 41799
+	                       1712 15006 41672 1705 15796 41546 1705 16585
+	                       41420 1700 17375 41297 1702 18165 41174 1701
+	                       18955 41053 1700 19744 40933 1702 20534 40814
+	                       1706 21324 40698 1709 22114 40583 1714 22904
+	                       40471 1733 23693 40358 1737 24483 40248 1752
+	                       25273 40136 1760 26063 40025 1768 26852 39914
+	                       1775 27642 39799 1775 28432 39677 1762 29222
+	                       39545 1727 30012 39407 1675 30801 39270 1622
+	                       31591 39140 1573 32381 39026 1548 33171 38922
+	                       1523 33960 38830 1516 34750 38747 1509 35540
+	                       38670 1509 36330 38599 1511 37120 38531 1511
+	                       37909 38466 1519 38699 38405 1525 39489 38346
+	                       1533 40279 38290 1538 41068 38234 1544 41858
+	                       38184 1564 42648 38133 1570 43438 38086 1583
+	                       44228 38040 1595 45017 37996 1603 45807 37954
+	                       1616 46597 37914 1629 47387 37875 1642 48177
+	                       37841 1661 48966 37806 1672 49756 37773 1679
+	                       50546 37742 1691 51336 37713 1706 52125 37684
+	                       1720 52915 37656 1733 53705 37626 1742 54495
+	                       37591 1751 55285 37548 1753 56074 37500 1760
+	                       56864 37450 1773 57654 37404 1803 58444 37349
+	                       1833 59233 37284 1869 60023 37207 1901 60813
+	                       37136 1950 61603 37067 2002 62393 36979 2063
+	                       63182 36880 2135 63972 36815 2215 64762 36779
+	                       2320 65552 36747 2453 66341 36712 2625 67131
+	                       36669 2875 67921 36588 3210 68711 36399 3629
+	                       69501 35954 4187 70290 35320 5252 71080 34472
+	                       7262 71870 33774 9872 72660 33774 9872 73449
+	                       33774 9872 74239 33774 9872 75029 33774 9872
+	                       75819 33774 9872 76609 33774 9872 77398 33774
+	                       9872 78188 33774 9872>;
+	battery1_profile_t4_num = <100>;
+	battery1_profile_t4_col = <3>;
+	battery1_profile_t4 = <0 44210 4210 790 44026 4239 1580 43881
+	                       4262 2369 43748 4252 3159 43624 4238 3949
+	                       43504 4223 4739 43381 4197 5528 43260 4174
+	                       6318 43136 4153 7108 43012 4132 7898 42887
+	                       4108 8688 42759 0xff0 9477 42631 4059 10267
+	                       42502 4035 11057 42371 4007 11847 42243 3989
+	                       12636 42114 3972 13426 41984 3950 14216 41857
+	                       3934 15006 41731 3922 15796 41604 3905 16585
+	                       41479 3894 17375 41356 3887 18165 41233 3882
+	                       18955 41110 3873 19744 40990 3873 20534 40870
+	                       3868 21324 40752 3868 22114 40635 3877 22904
+	                       40518 3873 23693 40400 3871 24483 40282 3875
+	                       25273 40162 3865 26063 40041 3861 26852 39916
+	                       3845 27642 39788 3815 28432 39658 3784 29222
+	                       39527 3747 30012 39398 3710 30801 39277 3683
+	                       31591 39166 3669 32381 39061 3654 33171 38967
+	                       3653 33960 38878 3650 34750 38796 3658 35540
+	                       38719 3663 36330 38649 3678 37120 38582 3696
+	                       37909 38519 3713 38699 38457 3728 39489 38399
+	                       3753 40279 38343 3771 41068 38290 3795 41858
+	                       38240 3824 42648 38192 3851 43438 38146 3877
+	                       44228 38102 3908 45017 38062 3942 45807 38023
+	                       3968 46597 37989 4006 47387 37957 4042 48177
+	                       37929 4083 48966 37905 4136 49756 37881 4187
+	                       50546 37858 4250 51336 37832 4308 52125 37806
+	                       4376 52915 37778 4452 53705 37746 4532 54495
+	                       37709 4623 55285 37667 4724 56074 37620 4835
+	                       56864 37567 4966 57654 37509 5113 58444 37440
+	                       5275 59233 37364 5463 60023 37285 5674 60813
+	                       37204 5927 61603 37119 6198 62393 37025 6491
+	                       63182 36940 6815 63972 36876 7207 64762 36825
+	                       7665 65552 36780 8227 66341 36727 8937 67131
+	                       36653 9884 67921 36515 11189 68711 36217 13288
+	                       69501 36155 13718 70290 36155 13718 71080 36155
+	                       13718 71870 36155 13718 72660 36155 13718 73449
+	                       36155 13718 74239 36155 13718 75029 36155 13718
+	                       75819 36155 13718 76609 36155 13718 77398 36155
+	                       13718 78188 36155 13718>;
+	Q_MAX_1_T0 = <6400 6400>;
+	Q_MAX_1_T1 = <6500 6500>;
+	Q_MAX_1_T2 = <6450 6450>;
+	Q_MAX_1_T3 = <6250 6250>;
+	Q_MAX_1_T4 = <5650 5650>;
+	Q_MAX_H_CURRENT_1_T0 = <6400 6400>;
+	Q_MAX_H_CURRENT_1_T1 = <6500 6500>;
+	Q_MAX_H_CURRENT_1_T2 = <6450 6450>;
+	Q_MAX_H_CURRENT_1_T3 = <6250 6250>;
+	Q_MAX_H_CURRENT_1_T4 = <5650 5650>;
+	battery0_profile_1_name = "ATL_4V3";
+	battery0_profile_1_t0_num = <100>;
+	battery0_profile_1_t0_col = <3>;
+	battery0_profile_1_t0 = <0 43066 107665 700 42962 634 1401 42858
+	                         634 2101 42751 635 2802 42645 634 3502
+	                         42537 634 4202 42431 640 4903 42323 640
+	                         5603 42217 645 6304 42110 643 7004 42003
+	                         645 7705 41897 648 8405 41791 648 9105
+	                         41688 651 9806 41584 651 10506 41482 650
+	                         11207 41381 654 11907 41280 652 12607 41181
+	                         655 13308 41084 659 14008 40987 658 14709
+	                         40891 662 15409 40797 663 16109 40705 668
+	                         16810 40614 670 17510 40524 675 18211 40436
+	                         675 18911 40350 686 19611 40266 690 20312
+	                         40182 694 21012 40100 702 21713 40019 709
+	                         22413 39938 718 23114 39855 731 23814 39770
+	                         743 24514 39672 741 25215 39547 706 25915
+	                         39405 665 26616 39284 644 27316 39191 644
+	                         28016 39111 642 28717 39042 641 29417 38978
+	                         643 30118 38917 645 30818 38858 643 31518
+	                         38803 645 32219 38748 643 32919 38696 642
+	                         33620 38645 641 34320 38597 647 35020 38550
+	                         645 35721 38504 646 36421 38460 649 37122
+	                         38418 648 37822 38376 652 38523 38336 654
+	                         39223 38298 659 39923 38261 662 40624 38224
+	                         664 41324 38188 664 42025 38155 670 42725
+	                         38123 673 43425 38090 678 44126 38057 678
+	                         44826 38025 688 45527 37987 687 46227 37939
+	                         675 46927 37866 641 47628 37787 635 48328
+	                         37724 642 49029 37676 645 49729 37633 651
+	                         50429 37587 652 51130 37538 647 51830 37491
+	                         645 52531 37447 646 53231 37407 648 53932
+	                         37369 653 54632 37328 656 55332 37276 652
+	                         56033 37215 647 56733 37151 644 57434 37095
+	                         648 58134 37040 652 58834 36969 653 59535
+	                         36893 638 60235 36861 635 60936 36851 642
+	                         61636 36841 649 62336 36831 658 63037 36817
+	                         671 63737 36793 683 64438 36736 690 65138
+	                         36562 669 65839 36236 671 66539 35815 694
+	                         67239 35303 719 67940 34629 741 68640 33814
+	                         803 69341 32448 1031>;
+	battery0_profile_1_t1_num = <100>;
+	battery0_profile_1_t1_col = <3>;
+	battery0_profile_1_t1 = <0 43151 107876 700 43048 771 1401 42942
+	                         774 2101 42834 768 2802 42727 773 3502
+	                         42620 774 4202 42509 771 4903 42401 774
+	                         5603 42293 779 6304 42184 777 7004 42075
+	                         778 7705 41966 778 8405 41860 779 9105
+	                         41753 782 9806 41649 786 10506 41544 786
+	                         11207 41440 788 11907 41337 791 12607 41237
+	                         795 13308 41138 798 14008 41040 805 14709
+	                         40942 805 15409 40846 810 16109 40751 813
+	                         16810 40658 823 17510 40566 826 18211 40477
+	                         834 18911 40388 843 19611 40302 854 20312
+	                         40214 862 21012 40131 874 21713 40046 887
+	                         22413 39961 895 23114 39876 914 23814 39785
+	                         914 24514 39683 908 25215 39563 875 25915
+	                         39431 827 26616 39304 784 27316 39200 762
+	                         28016 39114 758 28717 39037 754 29417 38970
+	                         753 30118 38906 751 30818 38847 751 31518
+	                         38791 752 32219 38738 757 32919 38684 753
+	                         33620 38635 753 34320 38587 757 35020 38540
+	                         754 35721 38495 760 36421 38452 761 37122
+	                         38411 763 37822 38371 765 38523 38330 763
+	                         39223 38294 770 39923 38257 771 40624 38222
+	                         774 41324 38188 777 42025 38156 781 42725
+	                         38125 788 43425 38094 793 44126 38063 792
+	                         44826 38035 801 45527 38004 802 46227 37971
+	                         800 46927 37932 791 47628 37887 772 48328
+	                         37840 764 49029 37798 761 49729 37756 760
+	                         50429 37712 757 51130 37665 754 51830 37620
+	                         750 52531 37580 754 53231 37543 754 53932
+	                         37507 759 54632 37465 757 55332 37416 754
+	                         56033 37357 754 56733 37296 752 57434 37243
+	                         753 58134 37191 759 58834 37121 761 59535
+	                         37042 751 60235 37001 754 60936 36986 755
+	                         61636 36976 762 62336 36965 767 63037 36951
+	                         781 63737 36931 796 64438 36886 808 65138
+	                         36744 792 65839 36430 790 66539 35992 811
+	                         67239 35453 840 67940 34795 890 68640 33951
+	                         1002 69341 32228 1408>;
+	battery0_profile_1_t2_num = <100>;
+	battery0_profile_1_t2_col = <3>;
+	battery0_profile_1_t2 = <0 43010 1166 700 42902 1161 1401 42794
+	                         1161 2101 42684 1151 2802 42573 1150 3502
+	                         42462 1147 4202 42351 1147 4903 42240 1145
+	                         5603 42129 1139 6304 42019 1142 7004 41909
+	                         1136 7705 41801 1138 8405 41692 1134 9105
+	                         41587 1141 9806 41480 1140 10506 41376 1146
+	                         11207 41272 1148 11907 41170 1151 12607 41068
+	                         1155 13308 40968 1160 14008 40869 1163 14709
+	                         40772 1170 15409 40677 1180 16109 40582 1186
+	                         16810 40489 1194 17510 40398 1203 18211 40307
+	                         1214 18911 40217 1225 19611 40128 1237 20312
+	                         40037 1245 21012 39945 1255 21713 39847 1257
+	                         22413 39739 1243 23114 39618 1208 23814 39491
+	                         1164 24514 39367 1117 25215 39257 1084 25915
+	                         39162 1069 26616 39077 1055 27316 39001 1050
+	                         28016 38933 1048 28717 38869 1049 29417 38809
+	                         1046 30118 38750 1047 30818 38695 1047 31518
+	                         38641 1047 32219 38592 1053 32919 38541 1050
+	                         33620 38494 1051 34320 38448 1060 35020 38403
+	                         1058 35721 38360 1064 36421 38319 1067 37122
+	                         38279 1074 37822 38240 1076 38523 38203 1078
+	                         39223 38168 1087 39923 38133 1089 40624 38100
+	                         1093 41324 38067 1097 42025 38036 1099 42725
+	                         38006 1106 43425 37976 1105 44126 37948 1112
+	                         44826 37919 1111 45527 37890 1112 46227 37860
+	                         1112 46927 37828 1108 47628 37789 1096 48328
+	                         37746 1083 49029 37700 1081 49729 37653 1075
+	                         50429 37613 1081 51130 37576 1080 51830 37539
+	                         1084 52531 37496 1090 53231 37444 1092 53932
+	                         37381 1093 54632 37322 1099 55332 37270 1106
+	                         56033 37212 1115 56733 37135 1117 57434 37055
+	                         1121 58134 37016 1129 58834 36996 1139 59535
+	                         36979 1148 60235 36965 1165 60936 36945 1184
+	                         61636 36917 1212 62336 36857 1243 63037 36678
+	                         1253 63737 36314 1263 64438 35817 1310 65138
+	                         35202 1389 65839 34351 1516 66539 32248 2229
+	                         67239 30658 3291 67940 30658 3291 68640 30658
+	                         3291 69341 30658 3291>;
+	battery0_profile_1_t3_num = <100>;
+	battery0_profile_1_t3_col = <3>;
+	battery0_profile_1_t3 = <0 42954 1834 700 42845 1823 1401 42736
+	                         1808 2101 42626 1799 2802 42517 1797 3502
+	                         42405 1786 4202 42294 1781 4903 42185 1776
+	                         5603 42074 1771 6304 41963 1762 7004 41855
+	                         1754 7705 41747 1756 8405 41639 1752 9105
+	                         41533 1752 9806 41426 1751 10506 41322 1751
+	                         11207 41218 1751 11907 41116 1751 12607 41014
+	                         1756 13308 40914 1759 14008 40814 1758 14709
+	                         40716 1766 15409 40621 1778 16109 40524 1781
+	                         16810 40430 1790 17510 40336 1800 18211 40241
+	                         1804 18911 40145 1808 19611 40049 1812 20312
+	                         39950 1812 21012 39846 1804 21713 39734 1781
+	                         22413 39617 1746 23114 39499 1709 23814 39383
+	                         1671 24514 39276 1641 25215 39180 1626 25915
+	                         39090 1607 26616 39010 1602 27316 38937 1596
+	                         28016 38869 1596 28717 38805 1593 29417 38745
+	                         1597 30118 38687 1596 30818 38632 1602 31518
+	                         38580 1606 32219 38529 1613 32919 38479 1615
+	                         33620 38433 1623 34320 38386 1628 35020 38342
+	                         1639 35721 38299 1644 36421 38258 1652 37122
+	                         38219 1662 37822 38179 1668 38523 38143 1675
+	                         39223 38107 1683 39923 38073 1694 40624 38040
+	                         1702 41324 38010 1714 42025 37979 1723 42725
+	                         37951 1731 43425 37924 1738 44126 37897 1745
+	                         44826 37873 1756 45527 37847 1766 46227 37824
+	                         1776 46927 37798 1779 47628 37772 1791 48328
+	                         37739 1791 49029 37701 1795 49729 37660 1800
+	                         50429 37617 1808 51130 37578 1827 51830 37535
+	                         1849 52531 37483 1871 53231 37423 1895 53932
+	                         37357 1920 54632 37297 1955 55332 37238 1991
+	                         56033 37169 2033 56733 37083 2080 57434 37007
+	                         2131 58134 36965 2192 58834 36936 2270 59535
+	                         36908 2363 60235 36878 2481 60936 36845 2640
+	                         61636 36794 2849 62336 36698 3115 63037 36463
+	                         3427 63737 36059 3843 64438 35423 4750 65138
+	                         33934 8437 65839 33934 8437 66539 33934 8437
+	                         67239 33934 8437 67940 33934 8437 68640 33934
+	                         8437 69341 33934 8437>;
+	battery0_profile_1_t4_num = <100>;
+	battery0_profile_1_t4_col = <3>;
+	battery0_profile_1_t4 = <0 42933 107333 700 42828 4098 1401 42719
+	                         4073 2101 42612 4056 2802 42503 4036 3502
+	                         42393 4011 4202 42284 3993 4903 42176 3982
+	                         5603 42068 3964 6304 41958 3946 7004 41851
+	                         3934 7705 41745 3924 8405 41638 3908 9105
+	                         41533 3901 9806 41428 3891 10506 41324 3885
+	                         11207 41221 3881 11907 41118 3874 12607 41016
+	                         3873 13308 40915 3870 14008 40814 3865 14709
+	                         40716 3872 15409 40617 3877 16109 40518 3873
+	                         16810 40419 3872 17510 40319 3875 18211 40219
+	                         3871 18911 40117 3862 19611 40016 3859 20312
+	                         39910 3843 21012 39801 3817 21713 39693 3794
+	                         22413 39582 3766 23114 39472 3729 23814 39366
+	                         3702 24514 39265 3681 25215 39171 3669 25915
+	                         39082 3657 26616 39001 3651 27316 38923 3649
+	                         28016 38851 3653 28717 38784 3659 29417 38719
+	                         3663 30118 38660 3676 30818 38602 3690 31518
+	                         38548 3704 32219 38495 3719 32919 38444 3732
+	                         33620 38396 3754 34320 38349 3770 35020 38304
+	                         3790 35721 38260 3811 36421 38220 3836 37122
+	                         38179 3858 37822 38141 3880 38523 38104 3907
+	                         39223 38070 3934 39923 38036 3959 40624 38006
+	                         3984 41324 37978 4016 42025 37953 4049 42725
+	                         37929 4084 43425 37908 4128 44126 37889 4173
+	                         44826 37868 4219 45527 37849 4276 46227 37827
+	                         4324 46927 37804 4381 47628 37780 4446 48328
+	                         37754 4510 49029 37724 4586 49729 37691 4665
+	                         50429 37655 4754 51130 37613 4851 51830 37569
+	                         4961 52531 37521 5084 53231 37465 5215 53932
+	                         37404 5370 54632 37338 5531 55332 37270 5712
+	                         56033 37202 5932 56733 37131 6159 57434 37053
+	                         6401 58134 36977 6664 58834 36914 6963 59535
+	                         36863 7304 60235 36822 7703 60936 36784 8176
+	                         61636 36740 8749 62336 36688 9472 63037 36577
+	                         10649 63737 36423 11860 64438 36155 13718 65138
+	                         36155 13718 65839 36155 13718 66539 36155 13718
+	                         67239 36155 13718 67940 36155 13718 68640 36155
+	                         13718 69341 36155 13718>;
+	battery1_profile_1_name = "LWN_4V3";
+	battery1_profile_1_t0_num = <100>;
+	battery1_profile_1_t0_col = <3>;
+	battery1_profile_1_t0 = <0 43142 107854 700 43037 631 1400 42933
+	                         636 2100 42826 634 2800 42719 633 3500
+	                         42612 637 4200 42503 636 4900 42395 639
+	                         5600 42288 642 6300 42181 645 7000 42073
+	                         643 7700 41966 646 8400 41859 648 9100
+	                         41753 648 9799 41649 652 10499 41545 649
+	                         11199 41443 652 11899 41341 653 12599 41240
+	                         653 13299 41141 657 13999 41042 656 14699
+	                         40947 664 15399 40850 662 16099 40757 667
+	                         16799 40664 668 17499 40573 674 18199 40483
+	                         672 18899 40395 680 19599 40310 686 20299
+	                         40226 694 20999 40141 697 21699 40060 706
+	                         22399 39977 713 23099 39896 724 23799 39811
+	                         739 24499 39720 744 25199 39609 725 25899
+	                         39470 682 26599 39335 651 27299 39228 640
+	                         27999 39145 645 28699 39070 640 29398 39005
+	                         643 30098 38941 644 30798 38882 644 31498
+	                         38824 644 32198 38769 644 32898 38716 643
+	                         33598 38664 641 34298 38615 646 34998 38567
+	                         645 35698 38520 645 36398 38475 649 37098
+	                         38432 648 37798 38390 650 38498 38348 652
+	                         39198 38310 658 39898 38272 660 40598 38235
+	                         665 41298 38199 664 41998 38165 670 42698
+	                         38132 672 43398 38099 677 44098 38066 677
+	                         44798 38034 685 45498 37997 686 46198 37953
+	                         681 46898 37884 649 47598 37804 635 48298
+	                         37736 639 48997 37685 644 49697 37642 652
+	                         50397 37596 650 51097 37548 648 51797 37499
+	                         645 52497 37454 646 53197 37414 648 53897
+	                         37375 651 54597 37335 656 55297 37284 652
+	                         55997 37224 648 56697 37159 644 57397 37102
+	                         647 58097 37047 652 58797 36978 653 59497
+	                         36900 640 60197 36862 634 60897 36852 642
+	                         61597 36842 649 62297 36832 657 62997 36818
+	                         670 63697 36795 682 64397 36742 691 65097
+	                         36572 670 65797 36250 670 66497 35828 693
+	                         67197 35315 719 67897 34641 740 68596 33697
+	                         802 69296 32248 1031>;
+	battery1_profile_1_t1_num = <100>;
+	battery1_profile_1_t1_col = <3>;
+	battery1_profile_1_t1 = <0 43151 107876 700 43047 771 1400 42941
+	                         774 2100 42833 768 2800 42726 773 3500
+	                         42618 774 4200 42507 771 4900 42398 774
+	                         5600 42290 779 6300 42180 777 7000 42071
+	                         778 7700 41962 778 8400 41855 779 9100
+	                         41749 783 9799 41644 786 10499 41539 786
+	                         11199 41435 788 11899 41331 790 12599 41231
+	                         795 13299 41131 798 13999 41033 806 14699
+	                         40935 805 15399 40838 811 16099 40744 814
+	                         16799 40650 823 17499 40559 827 18199 40469
+	                         835 18899 40380 844 19599 40294 855 20299
+	                         40206 862 20999 40122 875 21699 40037 887
+	                         22399 39952 896 23099 39866 914 23799 39774
+	                         914 24499 39670 906 25199 39547 869 25899
+	                         39414 820 26599 39290 781 27299 39188 761
+	                         27999 39103 758 28699 39028 754 29398 38960
+	                         752 30098 38898 751 30798 38838 750 31498
+	                         38782 753 32198 38730 756 32898 38676 753
+	                         33598 38627 754 34298 38578 756 34998 38532
+	                         753 35698 38488 760 36398 38444 761 37098
+	                         38403 764 37798 38363 766 38498 38323 762
+	                         39198 38287 770 39898 38250 771 40598 38215
+	                         774 41298 38182 779 41998 38149 780 42698
+	                         38119 790 43398 38088 793 44098 38057 793
+	                         44798 38028 801 45498 37998 802 46198 37963
+	                         799 46898 37923 787 47598 37876 769 48298
+	                         37830 764 48997 37788 760 49697 37746 759
+	                         50397 37701 756 51097 37654 753 51797 37610
+	                         752 52497 37570 754 53197 37534 756 53897
+	                         37497 759 54597 37453 756 55297 37401 755
+	                         55997 37339 752 56697 37281 752 57397 37229
+	                         755 58097 37174 760 58797 37097 758 59497
+	                         37022 748 60197 36996 754 60897 36983 756
+	                         61597 36973 765 62297 36961 769 62997 36946
+	                         787 63697 36921 800 64397 36861 810 65097
+	                         36668 783 65797 36298 796 66497 35836 818
+	                         67197 35241 854 67897 34605 1092 68596 33323
+	                         1084 69296 32228 1408>;
+	battery1_profile_1_t2_num = <100>;
+	battery1_profile_1_t2_col = <3>;
+	battery1_profile_1_t2 = <0 43010 107524 700 42902 1223 1400 42794
+	                         1222 2100 42683 1212 2800 42572 1210 3500
+	                         42460 1208 4200 42350 1207 4900 42239 1205
+	                         5600 42127 1199 6300 42017 1203 7000 41907
+	                         1196 7700 41798 1198 8400 41689 1194 9100
+	                         41584 1201 9799 41477 1200 10499 41373 1206
+	                         11199 41269 1209 11899 41166 1212 12599 41064
+	                         1216 13299 40963 1222 13999 40864 1224 14699
+	                         40768 1232 15399 40672 1243 16099 40577 1248
+	                         16799 40484 1257 17499 40392 1267 18199 40301
+	                         1278 18899 40211 1290 19599 40122 1303 20299
+	                         40031 1311 20999 39938 1322 21699 39840 1323
+	                         22399 39730 1306 23099 39609 1269 23799 39481
+	                         1221 24499 39358 1172 25199 39249 1140 25899
+	                         39154 1124 26599 39070 1110 27299 38995 1105
+	                         27999 38926 1104 28699 38863 1104 29398 38803
+	                         1101 30098 38745 1102 30798 38689 1103 31498
+	                         38635 1102 32198 38586 1109 32898 38535 1105
+	                         33598 38489 1108 34298 38443 1116 34998 38398
+	                         1115 35698 38355 1119 36398 38314 1125 37098
+	                         38274 1131 37798 38235 1132 38498 38199 1136
+	                         39198 38163 1145 39898 38128 1146 40598 38095
+	                         1151 41298 38063 1155 41998 38031 1157 42698
+	                         38002 1166 43398 37972 1164 44098 37944 1171
+	                         44798 37914 1169 45498 37886 1171 46198 37856
+	                         1171 46898 37822 1165 47598 37782 1151 48298
+	                         37739 1139 48997 37692 1137 49697 37646 1131
+	                         50397 37606 1136 51097 37570 1139 51797 37532
+	                         1142 52497 37487 1148 53197 37434 1149 53897
+	                         37371 1152 54597 37312 1157 55297 37260 1166
+	                         55997 37200 1175 56697 37119 1176 57397 37045
+	                         1184 58097 37010 1188 58797 36993 1200 59497
+	                         36976 1211 60197 36961 1230 60897 36941 1252
+	                         61597 36909 1282 62297 36835 1317 62997 36624
+	                         1315 63697 36216 1338 64397 35702 1393 65097
+	                         35040 1486 65797 34128 1636 66497 32672 2048
+	                         67197 30658 3465 67897 30658 3465 68596 30658
+	                         3465 69296 30658 3465>;
+	battery1_profile_1_t3_num = <100>;
+	battery1_profile_1_t3_col = <3>;
+	battery1_profile_1_t3 = <0 43028 107571 700 42921 2035 1400 42811
+	                         2020 2100 42700 2005 2800 42589 1997 3500
+	                         42478 1996 4200 42364 1982 4900 42253 1979
+	                         5600 42142 1971 6300 42030 1965 7000 41917
+	                         1953 7700 41808 1950 8400 41699 1950 9100
+	                         41591 1945 9799 41484 1948 10499 41377 1946
+	                         11199 41272 1943 11899 41167 1946 12599 41064
+	                         1949 13299 40961 1952 13999 40860 1953 14699
+	                         40761 1956 15399 40663 1970 16099 40565 1979
+	                         16799 40469 1983 17499 40375 1998 18199 40278
+	                         2001 18899 40181 2007 19599 40085 2014 20299
+	                         39986 2014 20999 39883 2012 21699 39772 1988
+	                         22399 39655 1953 23099 39535 1912 23799 39416
+	                         1869 24499 39305 1831 25199 39205 1809 25899
+	                         39112 1790 26599 39029 1780 27299 38954 1774
+	                         27999 38884 1772 28699 38818 1770 29398 38757
+	                         1774 30098 38698 1774 30798 38641 1780 31498
+	                         38588 1784 32198 38537 1791 32898 38486 1794
+	                         33598 38439 1802 34298 38390 1806 34998 38347
+	                         1821 35698 38303 1827 36398 38261 1834 37098
+	                         38221 1847 37798 38181 1853 38498 38144 1860
+	                         39198 38108 1870 39898 38074 1881 40598 38040
+	                         1891 41298 38010 1905 41998 37979 1915 42698
+	                         37950 1923 43398 37923 1932 44098 37896 1939
+	                         44798 37871 1952 45498 37846 1963 46198 37822
+	                         1974 46898 37796 1976 47598 37768 1990 48298
+	                         37734 1989 48997 37696 1995 49697 37653 2001
+	                         50397 37611 2012 51097 37571 2035 51797 37526
+	                         2059 52497 37472 2086 53197 37409 2110 53897
+	                         37343 2142 54597 37283 2181 55297 37222 2223
+	                         55997 37147 2271 56697 37059 2327 57397 36993
+	                         2387 58097 36955 2456 58797 36927 2552 59497
+	                         36899 2665 60197 36868 2810 60897 36830 3008
+	                         61597 36767 3261 62297 36628 3584 62997 36337
+	                         3949 63697 35856 4560 64397 35251 5591 65097
+	                         34432 7682 65797 33934 9375 66497 33934 9375
+	                         67197 33934 9375 67897 33934 9375 68596 33934
+	                         9375 69296 33934 9375>;
+	battery1_profile_1_t4_num = <100>;
+	battery1_profile_1_t4_col = <3>;
+	battery1_profile_1_t4 = <0 43086 107715 700 42979 4123 1400 42874
+	                         4107 2100 42766 4082 2800 42658 4063 3500
+	                         42551 4048 4200 42441 4021 4900 42331 3998
+	                         5600 42223 3987 6300 42115 3972 7000 42006
+	                         3954 7700 41897 3938 8400 41792 3929 9100
+	                         41685 3915 9799 41578 3904 10499 41473 3893
+	                         11199 41370 3888 11899 41266 3883 12599 41163
+	                         3876 13299 41060 3873 13999 0xa000 3873 14699
+	                         40858 3867 15399 40759 3868 16099 40661 3877
+	                         16799 40562 3874 17499 40463 3875 18199 40363
+	                         3873 18899 40264 3875 19599 40163 3865 20299
+	                         40061 3861 20999 39957 3852 21699 39850 3830
+	                         22399 39741 3806 23099 39632 3777 23799 39521
+	                         3745 24499 39412 3714 25199 39310 3690 25899
+	                         39212 3671 26599 39122 3666 27299 39037 3653
+	                         27999 38958 3653 28699 38883 3650 29398 38814
+	                         3657 30098 38748 3662 30798 38687 3670 31498
+	                         38628 3682 32198 38572 3698 32898 38519 3713
+	                         33598 38467 3726 34298 38418 3744 34998 38371
+	                         3766 35698 38324 3779 36398 38280 3799 37098
+	                         38238 3825 37798 38197 3848 38498 38158 3867
+	                         39198 38121 3895 39898 38085 3919 40598 38053
+	                         3950 41298 38019 3971 41998 37991 4004 42698
+	                         37964 4032 43398 37940 4068 44098 37917 4104
+	                         44798 37898 4153 45498 37878 4195 46198 37858
+	                         4249 46898 37837 4298 47598 37815 4354 48298
+	                         37792 4416 48997 37768 4477 49697 37738 4550
+	                         50397 37708 4627 51097 37673 4711 51797 37633
+	                         4803 52497 37591 4908 53197 37544 5024 53897
+	                         37492 5150 54597 37434 5292 55297 37369 5451
+	                         55997 37304 5626 56697 37235 5822 57397 37167
+	                         6048 58097 37091 6283 58797 37012 6535 59497
+	                         36941 6809 60197 36887 7136 60897 36841 7499
+	                         61597 36803 7938 62297 36762 8457 62997 36717
+	                         9093 63697 36649 9923 64397 36537 11005 65097
+	                         36320 12586 65797 36155 13718 66497 36155 13718
+	                         67197 36155 13718 67897 36155 13718 68596 36155
+	                         13718 69296 36155 13718>;
+	Q_MAX_2_T0 = <4250 4250>;
+	Q_MAX_2_T1 = <4300 4300>;
+	Q_MAX_2_T2 = <4200 4200>;
+	Q_MAX_2_T3 = <4050 4050>;
+	Q_MAX_2_T4 = <3250 3250>;
+	Q_MAX_H_CURRENT_2_T0 = <4250 4250>;
+	Q_MAX_H_CURRENT_2_T1 = <4300 4300>;
+	Q_MAX_H_CURRENT_2_T2 = <4200 4200>;
+	Q_MAX_H_CURRENT_2_T3 = <4050 4050>;
+	Q_MAX_H_CURRENT_2_T4 = <3250 3250>;
+	battery0_profile_2_name = "ATL_4V";
+	battery0_profile_2_t0_num = <100>;
+	battery0_profile_2_t0_col = <3>;
+	battery0_profile_2_t0 = <0 39679 550 459 39619 550 919 39551
+	                         556 1378 39474 571 1837 39377 563 2297
+	                         39275 553 2756 39187 550 3215 39115 550
+	                         3675 39053 547 4134 39001 543 4593 38954
+	                         543 5053 38908 542 5512 38869 542 5971
+	                         38829 542 6431 38789 536 6890 38754 541
+	                         7349 38720 549 7808 38684 546 8268 38650
+	                         543 8727 38617 543 9186 38584 543 9646
+	                         38553 540 10105 38522 537 10564 38491 542
+	                         11024 38460 535 11483 38434 542 11942 38408
+	                         549 12402 38378 550 12861 38351 550 13320
+	                         38327 550 13780 38301 550 14239 38274 550
+	                         14698 38248 547 15158 38224 547 15617 38203
+	                         558 16076 38181 558 16536 38158 551 16995
+	                         38135 557 17454 38115 564 17914 38096 567
+	                         18373 38073 560 18832 38054 567 19292 38036
+	                         574 19751 38016 575 20210 37996 577 20669
+	                         37976 580 21129 37956 583 21588 37935 589
+	                         22047 37905 580 22507 37864 557 22966 37810
+	                         544 23425 37757 536 23885 37707 541 24344
+	                         37667 544 24803 37636 550 25263 37606 547
+	                         25722 37577 550 26181 37549 556 26641 37517
+	                         550 27100 37486 548 27559 37455 543 28019
+	                         37427 550 28478 37401 550 28937 37376 550
+	                         29397 37353 558 29856 37330 558 30315 37305
+	                         558 30775 37275 559 31234 37239 555 31693
+	                         37199 550 32153 37156 548 32612 37113 546
+	                         33071 37078 556 33531 37041 550 33990 37001
+	                         557 34449 36953 560 34908 36897 546 35368
+	                         36856 537 35827 36839 540 36286 36833 547
+	                         36746 36827 550 37205 36819 550 37664 36810
+	                         555 38124 36805 567 38583 36794 577 39042
+	                         36781 588 39502 36762 598 39961 36724 602
+	                         40420 36638 584 40880 36464 563 41339 36234
+	                         574 41798 35957 585 42258 35632 588 42717
+	                         35247 591 43176 34783 599 43636 34208 615
+	                         44095 33450 662 44554 32561 745 45014 32561
+	                         745 45473 32561 745>;
+	battery0_profile_2_t1_num = <100>;
+	battery0_profile_2_t1_col = <3>;
+	battery0_profile_2_t1 = <0 39744 675 459 39651 675 919 39576
+	                         700 1378 39480 707 1837 39369 706 2297
+	                         39265 709 2756 39177 702 3215 39105 687
+	                         3675 39045 680 4134 38991 676 4593 38946
+	                         680 5053 38901 675 5512 38858 673 5971
+	                         38819 668 6431 38779 666 6890 38743 670
+	                         7349 38710 674 7808 38676 672 8268 38643
+	                         668 8727 38610 668 9186 38579 668 9646
+	                         38547 672 10105 38516 665 10564 38488 672
+	                         11024 38457 666 11483 38431 665 11942 38405
+	                         675 12402 38378 676 12861 38352 677 13320
+	                         38327 680 13780 38301 675 14239 38276 676
+	                         14698 38254 683 15158 38231 683 15617 38208
+	                         680 16076 38186 682 16536 38166 688 16995
+	                         38144 685 17454 38125 685 17914 38106 692
+	                         18373 38087 698 18832 38067 697 19292 38048
+	                         699 19751 38031 706 20210 38014 712 20669
+	                         37998 715 21129 37978 713 21588 37958 712
+	                         22047 37941 719 22507 37920 717 22966 37895
+	                         709 23425 37865 697 23885 37830 678 24344
+	                         37794 666 24803 37766 672 25263 37738 665
+	                         25722 37713 665 26181 37687 671 26641 37657
+	                         662 27100 37630 667 27559 37601 664 28019
+	                         37573 661 28478 37549 666 28937 37527 667
+	                         29397 37505 667 29856 37485 668 30315 37462
+	                         672 30775 37437 666 31234 37409 665 31693
+	                         37376 672 32153 37337 670 32612 37294 666
+	                         33071 37256 670 33531 37221 672 33990 37186
+	                         667 34449 37149 665 34908 37100 667 35368
+	                         37044 660 35827 36996 667 36286 36971 659
+	                         36746 36957 659 37205 36948 660 37664 36941
+	                         663 38124 36934 666 38583 36926 673 39042
+	                         36916 682 39502 36904 682 39961 36890 691
+	                         40420 36867 697 40880 36822 704 41339 36713
+	                         699 41798 36515 692 42258 36256 700 42717
+	                         35947 705 43176 35587 715 43636 35163 742
+	                         44095 34648 780 44554 33992 838 45014 33084
+	                         1008 45473 31612 1690>;
+	battery0_profile_2_t2_num = <100>;
+	battery0_profile_2_t2_col = <3>;
+	battery0_profile_2_t2 = <0 39663 1008 459 39584 1008 919 39500
+	                         1049 1378 39388 1049 1837 39263 1031 2297
+	                         39154 1013 2756 39070 1009 3215 39001 1004
+	                         3675 38942 995 4134 38889 991 4593 38840
+	                         990 5053 38792 984 5512 38750 983 5971
+	                         38712 986 6431 38672 991 6890 38634 983
+	                         7349 38596 985 7808 38564 992 8268 38527
+	                         986 8727 38495 985 9186 38463 985 9646
+	                         38430 983 10105 38400 987 10564 38369 990
+	                         11024 38340 990 11483 38313 993 11942 38284
+	                         995 12402 38256 993 12861 38230 1000 13320
+	                         38204 1000 13780 38178 1002 14239 38157 1015
+	                         14698 38128 1008 15158 38108 1014 15617 38085
+	                         1017 16076 38064 1028 16536 38041 1024 16995
+	                         38020 1028 17454 38002 1041 17914 37981 1042
+	                         18373 37959 1038 18832 37940 1039 19292 37923
+	                         1045 19751 37904 1054 20210 37885 1053 20669
+	                         37868 1055 21129 37850 1054 21588 37833 1062
+	                         22047 37812 1055 22507 37792 1055 22966 37771
+	                         1059 23425 37749 1056 23885 37723 1044 24344
+	                         37699 1033 24803 37672 1030 25263 37645 1026
+	                         25722 37617 1019 26181 37588 1018 26641 37559
+	                         1020 27100 37531 1017 27559 37508 1023 28019
+	                         37485 1023 28478 37466 1025 28937 37445 1023
+	                         29397 37418 1030 29856 37395 1037 30315 37364
+	                         1044 30775 37325 1041 31234 37286 1049 31693
+	                         37244 1049 32153 37206 1052 32612 37172 1055
+	                         33071 37135 1062 33531 37092 1070 33990 37040
+	                         1067 34449 36982 1063 34908 36935 1064 35368
+	                         36914 1073 35827 36902 1086 36286 36891 1093
+	                         36746 36882 1100 37205 36870 1100 37664 36859
+	                         1113 38124 36847 1129 38583 36833 1149 39042
+	                         36810 1160 39502 36773 1178 39961 36692 1200
+	                         40420 36526 1209 40880 36279 1221 41339 35979
+	                         1245 41798 35623 1268 42258 35205 1313 42717
+	                         34697 1370 43176 34054 1449 43636 33173 1617
+	                         44095 31664 2257 44554 31633 2270 45014 31633
+	                         2270 45473 31633 2270>;
+	battery0_profile_2_t3_num = <100>;
+	battery0_profile_2_t3_col = <3>;
+	battery0_profile_2_t3 = <0 39694 1620 459 39604 1620 919 39508
+	                         1662 1378 39393 1687 1837 39255 1649 2297
+	                         39139 1636 2756 39046 1623 3215 38977 1631
+	                         3675 38915 1630 4134 38858 1622 4593 38808
+	                         1625 5053 38762 1623 5512 38717 1619 5971
+	                         38676 1627 6431 38635 1631 6890 38597 1636
+	                         7349 38559 1640 7808 38521 1641 8268 38485
+	                         1647 8727 38451 1649 9186 38418 1660 9646
+	                         38385 1662 10105 38354 1669 10564 38324 1673
+	                         11024 38290 1667 11483 38263 1676 11942 38234
+	                         1685 12402 38209 1704 12861 38179 1690 13320
+	                         38152 1698 13780 38128 1712 14239 38104 1727
+	                         14698 38077 1721 15158 38054 1736 15617 38032
+	                         1750 16076 38009 1753 16536 37987 1756 16995
+	                         37966 1765 17454 37947 1773 17914 37925 1775
+	                         18373 37907 1791 18832 37890 1803 19292 37872
+	                         1815 19751 37855 1818 20210 37836 1818 20669
+	                         37820 1825 21129 37805 1837 21588 37787 1842
+	                         22047 37769 1837 22507 37754 1840 22966 37739
+	                         1850 23425 37723 1861 23885 37705 1862 24344
+	                         37683 1862 24803 37662 1869 25263 37636 1875
+	                         25722 37607 1878 26181 37584 1900 26641 37557
+	                         1901 27100 37533 1915 27559 37512 1937 28019
+	                         37487 1952 28478 37461 1973 28937 37428 1988
+	                         29397 37395 2017 29856 37353 2037 30315 37308
+	                         2055 30775 37265 2090 31234 37223 2121 31693
+	                         37183 2152 32153 37141 2183 32612 37088 2213
+	                         33071 37030 2252 33531 36971 2297 33990 36925
+	                         2338 34449 36895 2379 34908 36874 2430 35368
+	                         36856 2487 35827 36838 2546 36286 36821 2613
+	                         36746 36804 2686 37205 36784 2779 37664 36762
+	                         2876 38124 36726 2977 38583 36668 3096 39042
+	                         36552 3218 39502 36338 3350 39961 36052 3518
+	                         40420 35708 3705 40880 35301 3937 41339 34807
+	                         4259 41798 34191 4666 42258 33359 5254 42717
+	                         32796 4745 43176 32796 4745 43636 32796 4745
+	                         44095 32796 4745 44554 32796 4745 45014 32796
+	                         4745 45473 32796 4745>;
+	battery0_profile_2_t4_num = <100>;
+	battery0_profile_2_t4_col = <3>;
+	battery0_profile_2_t4 = <0 39772 3093 459 39661 3093 919 39542
+	                         3151 1378 39402 3157 1837 39269 3138 2297
+	                         39161 3131 2756 39077 3139 3215 39008 3149
+	                         3675 38949 3160 4134 38897 3170 4593 38844
+	                         3173 5053 38797 3189 5512 38757 3200 5971
+	                         38712 3202 6431 38674 3220 6890 38634 3230
+	                         7349 38599 3243 7808 38563 3257 8268 38529
+	                         3271 8727 38496 3285 9186 38463 3298 9646
+	                         38432 3307 10105 38401 3319 10564 38373 3328
+	                         11024 38342 3350 11483 38313 3357 11942 38290
+	                         3384 12402 38260 3387 12861 38235 3398 13320
+	                         38212 3422 13780 38187 3437 14239 38162 3451
+	                         14698 38139 3469 15158 38118 3482 15617 38096
+	                         3495 16076 38076 3520 16536 38056 3537 16995
+	                         38036 3557 17454 38016 3564 17914 38002 3586
+	                         18373 37987 3607 18832 37975 3632 19292 37960
+	                         3647 19751 37947 3666 20210 37938 3695 20669
+	                         37926 3720 21129 37916 3741 21588 37907 3768
+	                         22047 37895 3808 22507 37884 3838 22966 37866
+	                         3849 23425 37855 3899 23885 37841 3929 24344
+	                         37825 3969 24803 37806 4003 25263 37785 4035
+	                         25722 37764 4077 26181 37742 4127 26641 37718
+	                         4173 27100 37693 4214 27559 37670 4277 28019
+	                         37644 4335 28478 37615 4399 28937 37587 4457
+	                         29397 37556 4532 29856 37523 4616 30315 37482
+	                         4687 30775 37441 4767 31234 37397 4849 31693
+	                         37352 4930 32153 37313 5022 32612 37272 5113
+	                         33071 37229 5209 33531 37185 5313 33990 37128
+	                         5398 34449 37069 5492 34908 37020 5598 35368
+	                         36982 5699 35827 36954 5809 36286 36929 5928
+	                         36746 36906 6053 37205 36886 6186 37664 36866
+	                         6332 38124 36847 6488 38583 36826 6662 39042
+	                         36802 6854 39502 36768 7061 39961 36722 7295
+	                         40420 36627 7519 40880 36461 7763 41339 36228
+	                         8039 41798 35941 8370 42258 35607 8780 42717
+	                         35213 9287 43176 34737 9929 43636 34144 10794
+	                         44095 33381 11817 44554 32351 10878 45014 30409
+	                         6023 45473 29045 2658>;
+	battery1_profile_2_name = "LWN_4V";
+	battery1_profile_2_t0_num = <100>;
+	battery1_profile_2_t0_col = <3>;
+	battery1_profile_2_t0 = <0 39642 650 444 39558 651 889 39461
+	                         652 1333 39356 644 1778 39263 642 2222
+	                         39187 642 2667 39123 639 3111 39068 637
+	                         3556 39020 640 4000 38974 636 4444 38932
+	                         636 4889 38893 639 5333 38855 638 5778
+	                         38818 637 6222 38782 638 6667 38746 638
+	                         7111 38712 637 7556 38679 638 8000 38646
+	                         638 8445 38613 635 8889 38584 641 9333
+	                         38554 641 9778 38523 639 10222 38494 637
+	                         10667 38465 638 11111 38439 642 11556 38411
+	                         642 12000 38385 640 12445 38358 642 12889
+	                         38333 644 13333 38308 643 13778 38284 646
+	                         14222 38260 649 14667 38238 650 15111 38215
+	                         653 15556 38193 655 16000 38171 657 16445
+	                         38151 659 16889 38129 662 17333 38109 666
+	                         17778 38090 670 18222 38070 671 18667 38051
+	                         672 19111 38032 679 19556 38012 680 20000
+	                         37993 685 20445 37971 689 20889 37942 681
+	                         21334 37902 660 21778 37852 640 22222 37799
+	                         632 22667 37750 634 23111 37710 639 23556
+	                         37678 642 24000 37650 642 24445 37624 651
+	                         24889 37594 646 25334 37566 647 25778 37535
+	                         646 26222 37505 644 26667 37475 645 27111
+	                         37446 646 27556 37420 646 28000 37395 644
+	                         28445 37372 648 28889 37346 647 29334 37317
+	                         650 29778 37285 651 30222 37248 650 30667
+	                         37207 649 31111 37164 646 31556 37124 644
+	                         32000 37090 646 32445 37055 652 32889 37013
+	                         651 33334 36963 647 33778 36911 638 34223
+	                         36876 632 34667 36863 634 35111 36857 639
+	                         35556 36851 645 36000 36845 650 36445 36839
+	                         654 36889 36831 664 37334 36820 667 37778
+	                         36807 677 38223 36787 690 38667 36750 694
+	                         39111 36671 684 39556 36518 665 40000 36304
+	                         673 40445 36048 680 40889 35753 684 41334
+	                         35408 684 41778 35002 692 42223 34512 709
+	                         42667 33897 739 43111 33079 813 43556 32122
+	                         948 44000 32122 948>;
+	battery1_profile_2_t1_num = <100>;
+	battery1_profile_2_t1_col = <3>;
+	battery1_profile_2_t1 = <0 39692 810 444 39596 806 889 39480
+	                         794 1333 39371 791 1778 39279 786 2222
+	                         39204 780 2667 39141 779 3111 39086 778
+	                         3556 39035 773 4000 38989 769 4444 38948
+	                         773 4889 38907 775 5333 38867 772 5778
+	                         38829 770 6222 38793 771 6667 38758 772
+	                         7111 38723 769 7556 38691 769 8000 38659
+	                         773 8445 38626 771 8889 38597 774 9333
+	                         38567 774 9778 38537 773 10222 38508 774
+	                         10667 38480 774 11111 38451 771 11556 38425
+	                         774 12000 38400 779 12445 38374 777 12889
+	                         38350 780 13333 38327 784 13778 38302 784
+	                         14222 38279 783 14667 38257 787 15111 38236
+	                         794 15556 38214 795 16000 38193 793 16445
+	                         38173 797 16889 38153 802 17333 38133 804
+	                         17778 38114 807 18222 38096 811 18667 38078
+	                         814 19111 38059 819 19556 38041 822 20000
+	                         38022 822 20445 38004 827 20889 37984 825
+	                         21334 37963 820 21778 37940 817 22222 37911
+	                         807 22667 37877 789 23111 37843 778 23556
+	                         37814 782 24000 37789 785 24445 37764 785
+	                         24889 37736 784 25334 37708 779 25778 37680
+	                         775 26222 37651 774 26667 37623 775 27111
+	                         37596 774 27556 37570 771 28000 37548 775
+	                         28445 37525 773 28889 37504 781 29334 37479
+	                         779 29778 37450 779 30222 37418 781 30667
+	                         37382 779 31111 37342 775 31556 37303 775
+	                         32000 37267 775 32445 37235 776 32889 37201
+	                         780 33334 37160 781 33778 37111 777 34223
+	                         37059 774 34667 37016 771 35111 36995 769
+	                         35556 36987 773 36000 36979 779 36445 36973
+	                         784 36889 36965 788 37334 36957 793 37778
+	                         36948 801 38223 36937 809 38667 36920 817
+	                         39111 36894 829 39556 36846 837 40000 36739
+	                         813 40445 36533 808 40889 36281 817 41334
+	                         35989 830 41778 35652 849 42223 35260 876
+	                         42667 34792 910 43111 34216 962 43556 33470
+	                         1071 44000 32429 1323>;
+	battery1_profile_2_t2_num = <100>;
+	battery1_profile_2_t2_col = <3>;
+	battery1_profile_2_t2 = <0 39676 1220 444 39548 1220 889 39413
+	                         1221 1333 39300 1217 1778 39213 1217 2222
+	                         39144 1218 2667 39084 1217 3111 39031 1216
+	                         3556 38981 1216 4000 38936 1218 4444 38892
+	                         1218 4889 38852 1219 5333 38812 1223 5778
+	                         38775 1227 6222 38738 1228 6667 38703 1231
+	                         7111 38668 1232 7556 38634 1234 8000 38602
+	                         1242 8445 38569 1241 8889 38539 1248 9333
+	                         38509 1252 9778 38478 1252 10222 38450 1258
+	                         10667 38422 1263 11111 38394 1264 11556 38368
+	                         1268 12000 38342 1276 12445 38316 1281 12889
+	                         38291 1285 13333 38268 1293 13778 38244 1299
+	                         14222 38220 1301 14667 38197 1306 15111 38176
+	                         1314 15556 38154 1319 16000 38133 1324 16445
+	                         38112 1331 16889 38093 1338 17333 38073 1345
+	                         17778 38055 1351 18222 38035 1354 18667 38018
+	                         1362 19111 38000 1366 19556 37982 1374 20000
+	                         37965 1377 20445 37947 1382 20889 37928 1385
+	                         21334 37909 1383 21778 37889 1385 22222 37869
+	                         1387 22667 37849 1386 23111 37825 1381 23556
+	                         37802 1380 24000 37777 1376 24445 37751 1376
+	                         24889 37724 1375 25334 37696 1374 25778 37668
+	                         1374 26222 37642 1375 26667 37617 1379 27111
+	                         37595 1387 27556 37575 1398 28000 37551 1402
+	                         28445 37527 1409 28889 37498 1415 29334 37465
+	                         1422 29778 37427 1429 30222 37386 1433 30667
+	                         37347 1440 31111 37310 1451 31556 37276 1458
+	                         32000 37241 1471 32445 37199 1479 32889 37147
+	                         1493 33334 37091 1502 33778 37045 1508 34223
+	                         37018 1520 34667 37003 1537 35111 36990 1553
+	                         35556 36979 1572 36000 36968 1595 36445 36957
+	                         1620 36889 36945 1650 37334 36929 1679 37778
+	                         36907 1716 38223 36874 1761 38667 36818 1813
+	                         39111 36709 1849 39556 36522 1868 40000 36266
+	                         1901 40445 35964 1961 40889 35616 2041 41334
+	                         35203 2142 41778 34698 2270 42223 34056 2443
+	                         42667 33173 2725 43111 32779 2856 43556 32779
+	                         2856 44000 32779 2856>;
+	battery1_profile_2_t3_num = <100>;
+	battery1_profile_2_t3_col = <3>;
+	battery1_profile_2_t3 = <0 39711 2040 444 39571 2036 889 39421
+	                         2037 1333 39298 2040 1778 39203 2047 2222
+	                         39130 2057 2667 39068 2069 3111 39012 2078
+	                         3556 38960 2084 4000 38912 2091 4444 38867
+	                         2099 4889 38824 2108 5333 38784 2117 5778
+	                         38744 2124 6222 38706 2134 6667 38669 2143
+	                         7111 38633 2152 7556 38599 2163 8000 38566
+	                         2171 8445 38533 2182 8889 38502 2193 9333
+	                         38470 2202 9778 38439 2213 10222 38410 2223
+	                         10667 38382 2239 11111 38353 2252 11556 38326
+	                         2267 12000 38300 2283 12445 38274 2297 12889
+	                         38249 2311 13333 38224 2322 13778 38198 2335
+	                         14222 38177 2353 14667 38154 2362 15111 38130
+	                         2373 15556 38110 2390 16000 38089 2405 16445
+	                         38067 2417 16889 38047 2429 17333 38028 2445
+	                         17778 38010 2463 18222 37991 2479 18667 37973
+	                         2490 19111 37957 2505 19556 37940 2524 20000
+	                         37924 2536 20445 37908 2549 20889 37894 2567
+	                         21334 37879 2585 21778 37863 2599 22222 37850
+	                         2620 22667 37833 2634 23111 37817 2653 23556
+	                         37799 2671 24000 37779 2688 24445 37758 2703
+	                         24889 37736 2722 25334 37712 2744 25778 37686
+	                         2764 26222 37659 2785 26667 37634 2811 27111
+	                         37609 2837 27556 37584 2872 28000 37557 2905
+	                         28445 37528 2951 28889 37495 2993 29334 37458
+	                         3029 29778 37419 3076 30222 37377 3130 30667
+	                         37334 3175 31111 37292 3228 31556 37254 3289
+	                         32000 37213 3359 32445 37164 3418 32889 37112
+	                         3487 33334 37059 3559 33778 37011 3634 34223
+	                         36973 3715 34667 36946 3805 35111 36925 3906
+	                         35556 36907 4016 36000 36888 4127 36445 36870
+	                         4254 36889 36849 4386 37334 36826 4538 37778
+	                         36797 4703 38223 36753 4880 38667 36683 5067
+	                         39111 36575 5253 39556 36411 5444 40000 36180
+	                         5664 40445 35888 5956 40889 35542 6350 41334
+	                         35128 6843 41778 34625 7493 42223 33991 8403
+	                         42667 33793 8691 43111 33793 8691 43556 33793
+	                         8691 44000 33793 8691>;
+	battery1_profile_2_t4_num = <100>;
+	battery1_profile_2_t4_col = <3>;
+	battery1_profile_2_t4 = <0 39733 4190 444 39568 4193 889 39405
+	                         4219 1333 39271 4250 1778 39168 4284 2222
+	                         39087 4316 2667 39020 4345 3111 38960 4372
+	                         3556 38905 4396 4000 38854 4419 4444 38807
+	                         4441 4889 38761 4464 5333 38719 4483 5778
+	                         38678 4501 6222 38639 4523 6667 38602 4549
+	                         7111 38565 4574 7556 38529 4590 8000 38496
+	                         4610 8445 38461 4635 8889 38431 4656 9333
+	                         38400 4680 9778 38370 4704 10222 38341 4729
+	                         10667 38313 4753 11111 38286 4777 11556 38259
+	                         4802 12000 38232 4822 12445 38208 4852 12889
+	                         38184 4883 13333 38161 4907 13778 38139 4931
+	                         14222 38118 4959 14667 38097 4989 15111 38077
+	                         5017 15556 38059 5044 16000 38043 5080 16445
+	                         38025 5115 16889 38011 5159 17333 37997 5197
+	                         17778 37982 5233 18222 37968 5273 18667 37954
+	                         5316 19111 37941 5358 19556 37928 5400 20000
+	                         37913 5445 20445 37901 5496 20889 37887 5542
+	                         21334 37873 5586 21778 37857 5634 22222 37842
+	                         5686 22667 37827 5742 23111 37810 5801 23556
+	                         37792 5857 24000 37774 5909 24445 37753 5971
+	                         24889 37732 6037 25334 37711 6107 25778 37689
+	                         6175 26222 37665 6246 26667 37641 6322 27111
+	                         37614 6401 27556 37587 6487 28000 37558 6580
+	                         28445 37526 6667 28889 37494 6763 29334 37458
+	                         6861 29778 37420 6961 30222 37382 7068 30667
+	                         37342 7178 31111 37302 7289 31556 37262 7413
+	                         32000 37220 7538 32445 37173 7657 32889 37127
+	                         7783 33334 37081 7922 33778 37036 8060 34223
+	                         36994 8204 34667 36957 8360 35111 36923 8524
+	                         35556 36894 8696 36000 36868 8883 36445 36845
+	                         9086 36889 36822 9302 37334 36799 9538 37778
+	                         36772 9797 38223 36738 10078 38667 36689 10387
+	                         39111 36618 10724 39556 36516 11076 40000 36374
+	                         11480 40445 36181 11967 40889 35935 12594 41334
+	                         35634 13448 41778 35515 13793 42223 35515 13793
+	                         42667 35515 13793 43111 35515 13793 43556 35515
+	                         13793 44000 35515 13793>;
+};
+
+&lk_charger {
+	usb_charger_current = <500000>;
+	ac_charger_current = <1200000>;
+	ac_charger_input_current = <1000000>;
+	non_std_ac_charger_current = <1000000>;
+	charging_host_charger_current = <1500000>;
+	fast_charge_voltage = <3100000>;
+	precharge_current = <350000>;
+	temp_t4_threshold = <55>;
+	temp_t3_threshold = <45>;
+	temp_t1_threshold = <15>;
+	temp_t0_threshold = <0>;
+	temp_t3_to_t4_input_current = <1000000>;
+	temp_t3_to_t4_charger_current = <1200000>;
+	temp_t0_to_t1_input_current = <1000000>;
+	temp_t0_to_t1_charger_current = <650000>;
+	always_display;
+	led_brightness = <10>;
+	show_logo_mini_ichg = <150>;
+};
+
+&charger {
+	battery_cv = <4450000>;
+	min_charger_voltage = <4500000>;
+	vbus_uvlo_voltage = <4300000>;
+	usb_charger_current = <500000>;
+	ac_charger_current = <3000000>;
+	ac_charger_input_current = <3000000>;
+	non_std_ac_charger_current = <3000000>;
+	charging_host_charger_current = <1500000>;
+	enable_bat_eoc_protect;
+	soc_exit_eoc = <96>;
+	top_off_mode_cv = <4250000>;
+	top_off_difference_full_cv = <2500>;
+	normal_difference_full_cv = <500>;
+	enable_sw_jeita;
+	jeita_temp_above_t4_cv = <4100000>;
+	jeita_temp_t3_to_t4_cv = <4100000>;
+	jeita_temp_t2_to_t3_cv = <4450000>;
+	jeita_temp_t1_to_t2_cv = <4450000>;
+	jeita_temp_t0_to_t1_cv = <4450000>;
+	jeita_temp_below_t0_cv = <4450000>;
+	temp_t4_thres = <55>;
+	temp_t4_thres_minus_x_degree = <52>;
+	temp_t3_thres = <45>;
+	temp_t3_thres_minus_x_degree = <40>;
+	temp_t2_thres = <25>;
+	temp_t2_thres_plus_x_degree = <25>;
+	temp_t1_thres = <15>;
+	temp_t1_thres_plus_x_degree = <16>;
+	temp_t0_thres = <0>;
+	temp_t0_thres_plus_x_degree = <6>;
+	temp_neg_10_thres_neg;
+	temp_neg_10_thres = <10>;
+	temp_t0_to_t1_charger_current = <650000>;
+	temp_t3_to_t4_charger_current = <3300000>;
+	battery_cv_aging1 = <4350000>;
+	top_off_mode_cv_aging1 = <4250000>;
+	jeita_temp_above_t4_cv_aging1 = <4100000>;
+	jeita_temp_t3_to_t4_cv_aging1 = <4100000>;
+	jeita_temp_t2_to_t3_cv_aging1 = <4350000>;
+	jeita_temp_t1_to_t2_cv_aging1 = <4350000>;
+	jeita_temp_t0_to_t1_cv_aging1 = <4350000>;
+	jeita_temp_below_t0_cv_aging1 = <4350000>;
+	battery_cv_aging2 = <4000000>;
+	top_off_mode_cv_aging2 = <0>;
+	jeita_temp_above_t4_cv_aging2 = <4000000>;
+	jeita_temp_t3_to_t4_cv_aging2 = <4000000>;
+	jeita_temp_t2_to_t3_cv_aging2 = <4000000>;
+	jeita_temp_t1_to_t2_cv_aging2 = <4000000>;
+	jeita_temp_t0_to_t1_cv_aging2 = <4000000>;
+	jeita_temp_below_t0_cv_aging2 = <4000000>;
+	dpm_cv_bat_vdiff_uv = <40000>;
+	dpm_ibat_threshold_ma = <200>;
+	dpm_state_count_max = <9>;
+	dpm_rechg_low_soc_diff = <2>;
+	dpm_input_cur_limit_ua = <300000>;
+	dpm_charge_cur_limit_ua = <300000>;
+	invchg_check_iusb_ua = <300000>;
+	invchg_check_ichg_ua = <1000000>;
+	invchg_check_mivr_uv = <4500000>;
+	power_detection_en;
+	aicl_trigger_iusb = <3000000>;
+	aicl_trigger_ichg = <3000000>;
+	adapter_9w_aicl_min = <1800000>;
+	adapter_12w_aicl_min = <2400000>;
+	adapter_5w_iusb_lim = <1000000>;
+	adapter_7p5w_iusb_lim = <1500000>;
+	adapter_9w_iusb_lim = <1800000>;
+	adapter_12w_iusb_lim = <2400000>;
+	adapter_15w_iusb_lim = <3000000>;
+};
+
+&pe {
+	status = "disabled";
+};
+
+&pe2 {
+	status = "disabled";
+};
+
+&pe4 {
+	status = "disabled";
+};
+
+&rt9467_chg {
+	mivr = <4500000>;
+	ieoc = <450000>;
+	safety_timer = <20>;
+	ircmp_resistor = <25000>;
+	ircmp_vclamp = <64000>;
+	cv = <4450000>;
+	aicr = <500000>;
+	iaicr_threshold = <1000000 1400000 2150000 2650000>;
+	iaicr_itarget = <1000 1800 2500 2800>;
+	aicl_vth_offset = <200000>;
+};
+
+&pd_manager {
+	discharge-en-gpio = <&pio 44 GPIO_ACTIVE_HIGH>;
+};
+
+&scp_dvfs {
+	sshub-vcore-supply = <&mt6359_vgpu11_sshub_reg>;
+};
+
+&amic {
+	num-channels = <2>;
+	wakeup-delay-ms = <350>;
+};
+
+&sound {
+	pinctrl-names = "default", "extamp_on", "extamp_off", "hp_extamp_on", "hp_extamp_off";
+	pinctrl-0 = <&aud_pins_default>;
+	pinctrl-1 = <&aud_pins_extamp_on>;
+	pinctrl-2 = <&aud_pins_extamp_off>;
+	pinctrl-3 = <&aud_pins_hp_extamp_on>;
+	pinctrl-4 = <&aud_pins_hp_extamp_off>;
+	audio-routing = "Ext Spk Amp", "Headphone L Ext Spk Amp", "Ext Headphone Amp", "Headphone L";
+	spk-pa-5v-en-gpios = <&pio 137 GPIO_ACTIVE_HIGH>;
+	ext-spk-amp-vdd-on-time-us = <5000>;
+	status = "okay";
+};
+
+&spi0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&spi_pins_0>;
+	status = "disabled";
+};
+
+&spi1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&spi_pins_1>;
+	status = "disabled";
+};
+
+&spi2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&spi_pins_2>;
+	status = "okay";
+};
+
+&ssusb {
+	maximum-speed = "high-speed";
+	vusb33-supply = <&mt6359_vusb_reg>;
+	mediatek,force-vbus;
+	wakeup-source;
+	dr_mode = "otg";
+	usb-role-switch;
+	mediatek,otg-wakeup;
+	mediatek,mtcmos-switch;
+	cdp-block;
+	status = "okay";
+
+	port {
+
+		mtu3_drd_switch: endpoint@0 {
+			remote-endpoint = <&usb_role>;
+		};
+	};
+};
+
+&ssusb1 {
+	pinctrl-names = "default";
+	vusb33-supply = <&mt6359_vusb_reg>;
+	phys = <&u2port1 3>;
+	wakeup-source;
+	mediatek,force-vbus;
+	vbus-supply = <&pogo_otg>;
+	dr_mode = "otg";
+	mediatek,mtcmos-switch;
+	mediatek,noise-still-tr;
+	init-block;
+	mediatek,usb-quick-plug;
+	status = "okay";
+};
+
+&typec_extcon {
+	status = "okay";
+	vbus-supply = <&rt9467_otg_vbus>;
+	charger = <&rt9467_chg>;
+	tcpc = "type_c_port0";
+	mediatek,bypss-typec-sink = <1>;
+
+	port {
+
+		usb_role: endpoint@0 {
+			remote-endpoint = <&mtu3_drd_switch>;
+		};
+	};
+};
+
+&typec_mux_switch {
+	orientation-switch;
+	status = "okay";
+
+	port {
+
+		ssusb_mux: endpoint@0 {
+			remote-endpoint = <&tcpc_typec_usb>;
+		};
+	};
+};
+
+&keypad {
+	pinctrl-names = "default";
+	pinctrl-0 = <&kpd_gpio>;
+	mediatek,key-debounce-ms = <1024>;
+	mediatek,kpd-sw-pwrkey = <116>;
+	mediatek,kpd-hw-pwrkey = <8>;
+	mediatek,use-extend-type = <0>;
+	mediatek,hw-map-num = <72>;
+	mediatek,hw-init-map = <115 114 0 0 0 0 0 0
+	                        0 0 0 0 0 0 0 0
+	                        0 0 0 0 0 0 0 0
+	                        0 0 0 0 0 0 0 0
+	                        0 0 0 0 0 0 0 0
+	                        0 0 0 0 0 0 0 0
+	                        0 0 0 0 0 0 0 0
+	                        0 0 0 0 0 0 0 0
+	                        0 0 0 0 0 0 0 0>;
+	mediatek,kpd-pwrkey-eint-gpio = <0>;
+	mediatek,kpd-pwkey-gpio-din = <0>;
+	mediatek,kpd-hw-dl-key0 = <0>;
+	mediatek,kpd-hw-dl-key1 = <1>;
+	mediatek,kpd-hw-dl-key2 = <8>;
+	mediatek,kpd-hw-recovery-key = <0>;
+	mediatek,kpd-hw-factory-key = <1>;
+	mediatek,kpd-hw-volume-key-inversed;
+	status = "okay";
+};
+
+&pmic_key {
+	mediatek,volume-swap-key = <115>;
+	power-off-time-sec = <2>;
+};
+
+&u2port0 {
+	mediatek,rev6 = <2>;
+	status = "okay";
+};
+
+&u2port1 {
+	status = "okay";
+};
+
+&u3phy0 {
+	status = "okay";
+};
+
+&u3phy1 {
+	status = "okay";
+};
+
+&uart0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart0_pin>;
+	status = "okay";
+};
+
+&uart1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&adsp_uart_pin>;
+	status = "disabled";
+};
+
+&usb_host0 {
+	status = "okay";
+};
+
+&usb_host1 {
+	vbus-supply = <&pogo_otg>;
+	status = "okay";
+};
+
+&mt6359_vrf12_reg {
+	regulator-always-on;
+};
+
+&mt6359_vio28_reg {
+	regulator-always-on;
+};
+
+&mt6359_vcn33_1_bt_reg {
+	regulator-min-microvolt = <3300000>;
+	regulator-max-microvolt = <3300000>;
+	regulator-always-on;
+};
+
+&mt6359_vcamio_reg {
+	regulator-always-on;
+};
+
+&thermal_zones {
+	ap_ntc {
+		polling-delay = <1000>;
+		polling-delay-passive = <1000>;
+		thermal-sensors = <&tboard_thermistor1>;
+
+		trips {
+
+			ap_ntc_sysrst: ap_ntc_sysrst@0 {
+				temperature = <75000>;
+				hysteresis = <0>;
+				type = "active";
+			};
+
+			ap_ntc_crit: ap_ntc_crit@0 {
+				temperature = <70000>;
+				hysteresis = <0>;
+				type = "critical";
+			};
+		};
+
+		cooling-maps {
+
+			map0 {
+				trip = <&ap_ntc_sysrst>;
+				cooling-device = <&sysrst_cooling THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+			};
+		};
+	};
+
+	pmic_temp {
+		polling-delay = <1000>;
+		polling-delay-passive = <1000>;
+		thermal-sensors = <&pmic_temp 0>;
+
+		trips {
+
+			pmic_temp_sysrst: pmic_temp_sysrst@0 {
+				temperature = <120000>;
+				hysteresis = <0>;
+				type = "active";
+			};
+
+			pmic_temp_crit: pmic_temp_crit@0 {
+				temperature = <118000>;
+				hysteresis = <0>;
+				type = "critical";
+			};
+		};
+
+		cooling-maps {
+
+			map0 {
+				trip = <&pmic_temp_sysrst>;
+				cooling-device = <&sysrst_cooling THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+			};
+		};
+	};
+
+	pmic_vcore {
+		polling-delay = <0>;
+		polling-delay-passive = <0>;
+		thermal-sensors = <&pmic_temp 1>;
+	};
+
+	pmic_vproc {
+		polling-delay = <0>;
+		polling-delay-passive = <0>;
+		thermal-sensors = <&pmic_temp 2>;
+	};
+
+	pmic_vgpu {
+		polling-delay = <0>;
+		polling-delay-passive = <0>;
+		thermal-sensors = <&pmic_temp 3>;
+	};
+
+	sdcard_ntc {
+		polling-delay = <1000>;
+		polling-delay-passive = <1000>;
+		thermal-sensors = <&tboard_thermistor2>;
+
+		trips {
+
+			sdcard_ntc_sysrst: sdcard_ntc_sysrst@0 {
+				temperature = <70000>;
+				hysteresis = <0>;
+				type = "active";
+			};
+
+			sdcard_ntc_crit: sdcard_ntc_crit@0 {
+				temperature = <65000>;
+				hysteresis = <0>;
+				type = "critical";
+			};
+		};
+
+		cooling-maps {
+
+			map0 {
+				trip = <&sdcard_ntc_sysrst>;
+				cooling-device = <&sysrst_cooling THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+			};
+		};
+	};
+
+	pm6365_ntc {
+		polling-delay = <1000>;
+		polling-delay-passive = <1000>;
+		thermal-sensors = <&tboard_thermistor3>;
+
+		trips {
+
+			pm6365_ntc_sysrst: pm6365_ntc_sysrst@0 {
+				temperature = <75000>;
+				hysteresis = <0>;
+				type = "active";
+			};
+
+			pm6365_ntc_crit: pm6365_ntc_crit@0 {
+				temperature = <70000>;
+				hysteresis = <0>;
+				type = "critical";
+			};
+		};
+
+		cooling-maps {
+
+			map0 {
+				trip = <&pm6365_ntc_sysrst>;
+				cooling-device = <&sysrst_cooling THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+			};
+		};
+	};
+
+	usb_ntc {
+		polling-delay = <1000>;
+		polling-delay-passive = <1000>;
+		thermal-sensors = <&tboard_thermistor4>;
+	};
+
+	charge_ntc {
+		polling-delay = <1000>;
+		polling-delay-passive = <1000>;
+		thermal-sensors = <&tboard_thermistor5>;
+
+		trips {
+
+			charge_ntc_sysrst: charge_ntc_sysrst@0 {
+				temperature = <75000>;
+				hysteresis = <0>;
+				type = "active";
+			};
+
+			charge_ntc_crit: charge_ntc_crit@0 {
+				temperature = <70000>;
+				hysteresis = <0>;
+				type = "critical";
+			};
+		};
+
+		cooling-maps {
+
+			map0 {
+				trip = <&charge_ntc_sysrst>;
+				cooling-device = <&sysrst_cooling THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+			};
+		};
+	};
+
+	mtk-master-charger {
+		polling-delay-passive = <3000>;
+		polling-delay = <3000>;
+		thermal-sensors = <&charger>;
+
+		trips {
+
+			mtk_charger_sysrst: mtk_charger_sysrst@0 {
+				temperature = <120000>;
+				hysteresis = <0>;
+				type = "active";
+			};
+
+			mtk_master_charger_max_crit: mtk_master_charger_max_crit@0 {
+				temperature = <118000>;
+				hysteresis = <0>;
+				type = "critical";
+			};
+		};
+
+		cooling-maps {
+
+			map0 {
+				trip = <&mtk_charger_sysrst>;
+				cooling-device = <&sysrst_cooling THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+			};
+		};
+	};
+
+	consys {
+		polling-delay = <1000>;
+		polling-delay-passive = <1000>;
+		thermal-sensors = <&consys>;
+
+		trips {
+
+			consys_max_sysrst: consys_max_sysrst@0 {
+				temperature = <115000>;
+				hysteresis = <2000>;
+				type = "active";
+			};
+
+			consys_max_crit: consys_max_crit@0 {
+				temperature = <113000>;
+				hysteresis = <2000>;
+				type = "critical";
+			};
+		};
+
+		cooling-maps {
+
+			map0 {
+				trip = <&consys_max_sysrst>;
+				cooling-device = <&sysrst_cooling THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+			};
+		};
+	};
+};
+
+&charger {
+	#thermal-sensor-cells = <0>;
+};
+
+&vdosys_config {
+	clock-relation = <255 2 255 2>;
+	mboxes = <&gce_mbox_d 0 0 4>,
+	         <&gce_mbox_d 1 0 4>,
+	         <&gce_mbox_d 2 0 4>,
+	         <&gce_mbox_d 3 CMDQ_NO_TIMEOUT CMDQ_THR_PRIO_2>,
+	         <&gce_mbox_d 5 CMDQ_NO_TIMEOUT CMDQ_THR_PRIO_2>,
+	         <&gce_mbox_d 4 0 4>,
+	         <&gce_mbox_d 6 0 3>,
+	         <&gce_mbox_d_sec 8 0 1>,
+	         <&gce_mbox_d_sec 10 0 1>,
+	         <&gce_mbox_d_sec 7 0 1>;
+};
+
+&vdosys1_client {
+	index = <2>;
+};
+
+&mdp_rdma0 {
+	mboxes = <&gce_mbox 13 1000 1>,
+	         <&gce_mbox 14 1000 1>,
+	         <&gce_mbox 16 1000 1>,
+	         <&gce_mbox 21 1000 1>,
+	         <&gce_mbox 22 1000 1>,
+	         <&gce_mbox_sec 11 1000 1>,
+	         <&gce_mbox_sec 12 1000 1>;
+};
+
+&vcu {
+	mboxes = <&gce_mbox_d 16 3000 1>,
+	         <&gce_mbox_d 17 3000 1>,
+	         <&gce_mbox_d_sec 9 3000 1>;
+};
+
+&vpu_devfreq {
+	power_table = <404 333 248 178 104 73 47>;
+	status = "okay";
+};
+
+&seninf_top {
+	seninf_csi_port_0: seninf_csi_port_0 {
+		compatible = "mediatek,seninf";
+		csi-port = "0";
+		nvmem-cells = <&csi_efuse0>;
+		nvmem-cell-names = "rg_csi";
+
+		port {
+
+			seninf_csi_port_0_in: endpoint {
+				remote-endpoint = <&sensor0_out>;
+			};
+		};
+	};
+};
+
+&seninf_top {
+	seninf_csi_port_1: seninf_csi_port_1 {
+		compatible = "mediatek,seninf";
+		csi-port = "1";
+		nvmem-cells = <&csi_efuse1>;
+		nvmem-cell-names = "rg_csi";
+
+		port {
+
+			seninf_csi_port_1_in: endpoint {
+				remote-endpoint = <&sensor1_out>;
+			};
+		};
+	};
+};
+
+&pio {
+	camera_pins_cam0_rst_0: cam0@0 {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO19__FUNC_B_GPIO19>;
+			bias-disable;
+			output-low;
+		};
+	};
+
+	camera_pins_cam0_rst_1: cam0@1 {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO19__FUNC_B_GPIO19>;
+			bias-disable;
+			output-high;
+		};
+	};
+
+	camera_pins_cam0_pnd_0: cam0@2 {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO18__FUNC_B_GPIO18>;
+			bias-disable;
+			output-low;
+		};
+	};
+
+	camera_pins_cam0_pnd_1: cam0@3 {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO18__FUNC_B_GPIO18>;
+			bias-disable;
+			output-high;
+		};
+	};
+
+	camera_pins_cam1_rst_0: cam1@0 {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO21__FUNC_B_GPIO21>;
+			bias-disable;
+			output-low;
+		};
+	};
+
+	camera_pins_cam1_rst_1: cam1@1 {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO21__FUNC_B_GPIO21>;
+			bias-disable;
+			output-high;
+		};
+	};
+
+	camera_pins_cam0_vcamd_0: cam0@vcam0 {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO111__FUNC_B_GPIO111>;
+			bias-disable;
+			output-low;
+		};
+	};
+
+	camera_pins_cam0_vcamd_1: cam0@vcam1 {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO111__FUNC_B_GPIO111>;
+			bias-disable;
+			output-high;
+		};
+	};
+
+	camera_pins_cam0_vcama_0: cam0@vcam2 {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO110__FUNC_B_GPIO110>;
+			bias-disable;
+			output-low;
+		};
+	};
+
+	camera_pins_cam0_vcama_1: cam0@vcam3 {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO110__FUNC_B_GPIO110>;
+			bias-disable;
+			output-high;
+		};
+	};
+
+	camera_pins_cam1_vcamd_0: cam1@vcam0 {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO111__FUNC_B_GPIO111>;
+			bias-disable;
+			output-low;
+		};
+	};
+
+	camera_pins_cam1_vcamd_1: cam1@vcam1 {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO111__FUNC_B_GPIO111>;
+			bias-disable;
+			output-high;
+		};
+	};
+
+	camera_pins_cam1_vcama_0: cam1@vcam2 {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO110__FUNC_B_GPIO110>;
+			bias-disable;
+			output-low;
+		};
+	};
+
+	camera_pins_cam1_vcama_1: cam1@vcam3 {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO110__FUNC_B_GPIO110>;
+			bias-disable;
+			output-high;
+		};
+	};
+
+	camera_pins_cam0_mclk_off: camera_pins_cam0_mclk_off {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO22__FUNC_B_GPIO22>;
+			output-low;
+		};
+	};
+
+	camera_pins_cam0_mclk_2ma: camera_pins_cam0_mclk_2ma {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO22__FUNC_O_CMMCLK0>;
+			drive-strength = <2>;
+		};
+	};
+
+	camera_pins_cam0_mclk_4ma: camera_pins_cam0_mclk_4ma {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO22__FUNC_O_CMMCLK0>;
+			drive-strength = <4>;
+		};
+	};
+
+	camera_pins_cam0_mclk_6ma: camera_pins_cam0_mclk_6ma {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO22__FUNC_O_CMMCLK0>;
+			drive-strength = <6>;
+		};
+	};
+
+	camera_pins_cam0_mclk_8ma: camera_pins_cam0_mclk_8ma {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO22__FUNC_O_CMMCLK0>;
+			drive-strength = <8>;
+		};
+	};
+
+	camera_pins_cam1_mclk_off: camera_pins_cam1_mclk_off {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO23__FUNC_B_GPIO23>;
+			output-low;
+		};
+	};
+
+	camera_pins_cam1_mclk_2ma: camera_pins_cam1_mclk_2ma {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO23__FUNC_O_CMMCLK1>;
+			drive-strength = <2>;
+		};
+	};
+
+	camera_pins_cam1_mclk_4ma: camera_pins_cam1_mclk_4ma {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO23__FUNC_O_CMMCLK1>;
+			drive-strength = <4>;
+		};
+	};
+
+	camera_pins_cam1_mclk_6ma: camera_pins_cam1_mclk_6ma {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO23__FUNC_O_CMMCLK1>;
+			drive-strength = <6>;
+		};
+	};
+
+	camera_pins_cam1_mclk_8ma: camera_pins_cam1_mclk_8ma {
+
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO23__FUNC_O_CMMCLK1>;
+			drive-strength = <8>;
+		};
+	};
+};
+
+&i2c5 {
+	mtk_camera_eeprom1: camera_eeprom1@51 {
+		compatible = "mediatek,camera_eeprom";
+		reg = <0x51>;
+		status = "okay";
+	};
+};
+
+&i2c6 {
+	mtk_camera_eeprom0: camera_eeprom0@50 {
+		compatible = "mediatek,camera_eeprom";
+		reg = <0x50>;
+		status = "okay";
+	};
+};
+
+&i2c6 {
+	camera_af_main@0c {
+		compatible = "mediatek,gt9772s";
+		reg = <0xc>;
+		vin-supply = <&mt6359_vibr_reg>;
+
+		port {
+
+			main_af: endpoint {
+				remote-endpoint = <&main_af_endpoint>;
+			};
+		};
+	};
+
+	camera_af_main1@0d {
+		compatible = "mediatek,gt9769";
+		reg = <0xd>;
+		vin-supply = <&mt6359_vibr_reg>;
+
+		port {
+
+			main_af1: endpoint {
+				remote-endpoint = <&main_af1_endpoint>;
+			};
+		};
+	};
+};
+
+&mtk_composite_v4l2_2 {
+	port@0 {
+
+		main_af_endpoint: endpoint {
+			remote-endpoint = <&main_af>;
+		};
+	};
+
+	port@1 {
+
+		main_af1_endpoint: endpoint {
+			remote-endpoint = <&main_af1>;
+		};
+	};
+};
+
+&i2c5 {
+	status = "okay";
+	clock-frequency = <400000>;
+
+	sensor1: sensor1 {
+		compatible = "mediatek,imgsensor";
+		#thermal-sensor-cells = <0>;
+		reg = <0x1a>;
+		pinctrl-names = "mclk_off", "mclk_2mA", "mclk_4mA", "mclk_6mA",
+		                "mclk_8mA", "rst_low", "rst_high", "avdd_off",
+		                "avdd_on", "dvdd_off", "dvdd_on";
+		pinctrl-0 = <&camera_pins_cam1_mclk_off>;
+		pinctrl-1 = <&camera_pins_cam1_mclk_2ma>;
+		pinctrl-2 = <&camera_pins_cam1_mclk_4ma>;
+		pinctrl-3 = <&camera_pins_cam1_mclk_6ma>;
+		pinctrl-4 = <&camera_pins_cam1_mclk_8ma>;
+		pinctrl-5 = <&camera_pins_cam1_rst_0>;
+		pinctrl-6 = <&camera_pins_cam1_rst_1>;
+		pinctrl-7 = <&camera_pins_cam1_vcama_0>;
+		pinctrl-8 = <&camera_pins_cam1_vcama_1>;
+		pinctrl-9 = <&camera_pins_cam1_vcamd_0>;
+		pinctrl-10 = <&camera_pins_cam1_vcamd_1>;
+		dovdd-supply = <&mt6359_vcamio_reg>;
+		avdd1-supply = <&mt6359_vfe28_reg>;
+		clocks = <&topckgen CLK_TOP_UNIVPLL_192M_D32>,
+		         <&topckgen CLK_TOP_UNIVPLL_192M_D16>,
+		         <&clk13m>,
+		         <&topckgen CLK_TOP_UNIVPLL_192M_D8>,
+		         <&clk26m>,
+		         <&topckgen CLK_TOP_UNIVPLL_192M_D4>,
+		         <&topckgen CLK_TOP_UNIVPLL_D6_D8>,
+		         <&topckgen CLK_TOP_CAMTG2_SEL>;
+		clock-names = "6", "12", "13", "24", "26", "48", "52", "mclk";
+		status = "okay";
+
+		port {
+
+			sensor1_out: endpoint {
+				remote-endpoint = <&seninf_csi_port_1_in>;
+			};
+		};
+	};
+};
+
+&i2c6 {
+	status = "okay";
+	clock-frequency = <400000>;
+
+	sensor0: sensor0 {
+		compatible = "mediatek,imgsensor";
+		#thermal-sensor-cells = <0>;
+		reg = <0x1b>;
+		pinctrl-names = "mclk_off", "mclk_2mA", "mclk_4mA", "mclk_6mA",
+		                "mclk_8mA", "pdn_low", "pdn_high", "rst_low",
+		                "rst_high", "avdd_off", "avdd_on", "dvdd_off",
+		                "dvdd_on";
+		pinctrl-0 = <&camera_pins_cam0_mclk_off>;
+		pinctrl-1 = <&camera_pins_cam0_mclk_2ma>;
+		pinctrl-2 = <&camera_pins_cam0_mclk_4ma>;
+		pinctrl-3 = <&camera_pins_cam0_mclk_6ma>;
+		pinctrl-4 = <&camera_pins_cam0_mclk_8ma>;
+		pinctrl-5 = <&camera_pins_cam0_pnd_0>;
+		pinctrl-6 = <&camera_pins_cam0_pnd_1>;
+		pinctrl-7 = <&camera_pins_cam0_rst_0>;
+		pinctrl-8 = <&camera_pins_cam0_rst_1>;
+		pinctrl-9 = <&camera_pins_cam0_vcama_0>;
+		pinctrl-10 = <&camera_pins_cam0_vcama_1>;
+		pinctrl-11 = <&camera_pins_cam0_vcamd_0>;
+		pinctrl-12 = <&camera_pins_cam0_vcamd_1>;
+		dovdd-supply = <&mt6359_vcamio_reg>;
+		afvdd-supply = <&mt6359_vibr_reg>;
+		avdd1-supply = <&mt6359_vfe28_reg>;
+		clocks = <&topckgen CLK_TOP_UNIVPLL_192M_D32>,
+		         <&topckgen CLK_TOP_UNIVPLL_192M_D16>,
+		         <&clk13m>,
+		         <&topckgen CLK_TOP_UNIVPLL_192M_D8>,
+		         <&clk26m>,
+		         <&topckgen CLK_TOP_UNIVPLL_192M_D4>,
+		         <&topckgen CLK_TOP_UNIVPLL_D6_D8>,
+		         <&topckgen CLK_TOP_CAMTG_SEL>;
+		clock-names = "6", "12", "13", "24", "26", "48", "52", "mclk";
+		status = "okay";
+
+		port {
+
+			sensor0_out: endpoint {
+				remote-endpoint = <&seninf_csi_port_0_in>;
+			};
+		};
+	};
+};

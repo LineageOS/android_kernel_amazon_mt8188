@@ -1,0 +1,77 @@
+/*
+ * Copyright (C) 2022 Amazon.com
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ */
+
+/dts-v1/;
+/plugin/;
+
+#define SUNSTONE_KEYBOARD_HALL_SENSOR
+#include "sunstone.dtsi"
+
+&chosen {
+	version = "evt";
+};
+
+&i2c0 {
+	ilitek@41 {
+		compatible = "ilitek_hid-over-i2c";
+		reg = <0x41>;
+		irq-gpios = <&pio 6 GPIO_ACTIVE_HIGH>;
+		hid-descr-addr = <0>;
+	};
+
+	focaltech_Touch@38 {
+		compatible = "focal_hid-over-i2c";
+		reg = <0x38>;
+		fts-reset-gpios = <&pio 5 GPIO_ACTIVE_HIGH>;
+		irq-gpios = <&pio 6 GPIO_ACTIVE_HIGH>;
+		hid-descr-addr = <0>;
+	};
+
+	nt36523n@1 {
+		compatible = "i2c-hid-of-nvt-ts";
+		reg = <0x1>;
+		hid-descr-addr = <0>;
+		irq-gpios = <&pio 6 GPIO_ACTIVE_HIGH>;
+		post-power-on-delay-ms = <50>;
+		novatek,reset-gpio = <&pio 5 GPIO_ACTIVE_HIGH>;
+		novatek,wakeup-id = <10>;
+		novatek,pen-support;
+	};
+};
+
+&lk_charger {
+	fast_charge_voltage = <3300000>;
+	precharge_current = <300000>;
+};
+
+&ssusb1 {
+	extcon = <&extcon_pogo_pin>;
+};
+
+&odm {
+	extcon_pogo_pin: extcon_pogo_pin {
+		compatible = "amzn,extcon-pogo-pin";
+		extcon = <&hall_sensors>;
+		work-interval = <200 15000 200>;
+		moisture-threshold = <0 605>;
+		keyboard-threshold = <606 770>;
+		nothing-threshold = <810 990>;
+		usb = <&ssusb1>;
+		io-channels = <&auxadc 5>;
+		io-channel-names = "pogo_extcon_adc_channel";
+		pinctrl-names = "detect_disable", "detect_enable";
+		pinctrl-0 = <&pogo_extcon_detect_disable>;
+		pinctrl-1 = <&pogo_extcon_detect_enable>;
+	};
+};

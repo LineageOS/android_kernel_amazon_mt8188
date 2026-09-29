@@ -1,0 +1,94 @@
+/*
+ * Copyright (C) 2022 Amazon.com
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "sunstone.dtsi"
+
+&chosen {
+	version = "proto";
+};
+
+&mtk_gauge {
+	FIXED_BATTERY_TEMPERATURE = <25>;
+};
+
+&rt9467_chg {
+	switch-en-gpio = <&pio 120 GPIO_ACTIVE_HIGH>;
+	otg-en-gpio = <&pio 148 GPIO_ACTIVE_HIGH>;
+};
+
+&mt6359_vbif28_reg {
+	regulator-always-on;
+};
+
+&i2c0 {
+	focaltech_Touch@38 {
+		compatible = "focaltech,fts";
+		reg = <0x38>;
+		focaltech,max-touch-number = <10>;
+		focaltech,display-coords = <0 0 1200 2000>;
+		focaltech,key-number = <0>;
+		focaltech,keys = <139 102 158>;
+		focaltech,key-x-coords = <200 600 800>;
+		focaltech,key-y-coords = <2000 2000 2000>;
+		reset-gpios = <&pio 5 GPIO_ACTIVE_HIGH>;
+		irq-gpios = <&pio 6 GPIO_ACTIVE_HIGH>;
+	};
+
+	novatek@62 {
+		compatible = "novatek,NVT-ts";
+		reg = <0x62>;
+		reset-gpios = <&pio 5 GPIO_ACTIVE_HIGH>;
+		irq-gpios = <&pio 6 GPIO_ACTIVE_HIGH>;
+		novatek,pen-support = <0>;
+		novatek,stylus-resol-double = <0>;
+		novatek,trigger-type = <1>;
+	};
+
+	ilitek@41 {
+		compatible = "tchip,ilitek";
+		reg = <0x41>;
+		status = "okay";
+		reset-gpios = <&pio 5 GPIO_ACTIVE_HIGH>;
+		irq-gpios = <&pio 6 GPIO_ACTIVE_HIGH>;
+	};
+};
+
+&lk_charger {
+	fast_charge_voltage = <3300000>;
+	precharge_current = <300000>;
+};
+
+&ssusb1 {
+	extcon = <&extcon_pogo_pin>;
+};
+
+&odm {
+	extcon_pogo_pin: extcon_pogo_pin {
+		compatible = "amzn,extcon-pogo-pin";
+		extcon = <&hall_sensors>;
+		work-interval = <200 15000 200>;
+		moisture-threshold = <0 605>;
+		keyboard-threshold = <606 770>;
+		nothing-threshold = <810 990>;
+		usb = <&ssusb1>;
+		io-channels = <&auxadc 5>;
+		io-channel-names = "pogo_extcon_adc_channel";
+		pinctrl-names = "detect_disable", "detect_enable";
+		pinctrl-0 = <&pogo_extcon_detect_disable>;
+		pinctrl-1 = <&pogo_extcon_detect_enable>;
+	};
+};

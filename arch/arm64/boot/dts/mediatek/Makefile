@@ -15,3 +15,16 @@ dtb-$(CONFIG_ARCH_MEDIATEK) += mt8183-evb.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt8183-kukui-krane-sku176.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt8188.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt8516-pumpkin.dtb
+
+dtbo-$(CONFIG_ARCH_MEDIATEK) += sunstone_proto.dtbo
+dtbo-$(CONFIG_ARCH_MEDIATEK) += sunstone_hvt.dtbo
+dtbo-$(CONFIG_ARCH_MEDIATEK) += sunstone_evt.dtbo
+dtbo-$(CONFIG_ARCH_MEDIATEK) += sunstone_dvt.dtbo
+
+extra-y += $(dtbo-y)
+
+quiet_cmd_dtbo = DTCO    $@
+      cmd_dtbo = $(subst -O dtbo,-O dtb,$(cmd_dtc))
+
+$(obj)/%.dtbo: $(src)/%.dts $(DTC) FORCE
+	$(call if_changed_dep,dtbo)
