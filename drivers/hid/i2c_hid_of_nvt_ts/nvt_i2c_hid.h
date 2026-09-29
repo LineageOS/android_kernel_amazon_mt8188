@@ -83,8 +83,6 @@ extern touch_metrics_info_t touch_metrics_data;
 #define NVT_TOUCH_ESD_CHECK_PERIOD 2000
 
 #define _u32_to_n_u8(u32, n) (((u32) >> (8 * n)) & 0xff)
-#define MIN(a, b) (a < b ? a : b)
-#define MAX(a, b) (a > b ? a : b)
 
 //---bus transfer length---
 #define BUS_TRANSFER_LENGTH 256
