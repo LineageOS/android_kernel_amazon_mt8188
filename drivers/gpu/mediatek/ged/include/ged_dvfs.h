@@ -6,6 +6,7 @@
 #ifndef __GED_DVFS_H__
 #define __GED_DVFS_H__
 
+#include <linux/minmax.h>
 #include <linux/types.h>
 #include "ged_type.h"
 
@@ -202,7 +203,6 @@ unsigned int ged_dvfs_get_tb_dvfs_margin_mode(void);
 extern void (*mtk_dvfs_loading_mode_fp)(int i32LoadingMode);
 extern int (*mtk_get_dvfs_loading_mode_fp)(void);
 extern void ged_get_gpu_utli_ex(struct GpuUtilization_Ex *util_ex);
-#define MAX(x, y)	((x) < (y) ? (y) : (x))
 #endif
 
 extern unsigned int ged_log_perf_trace_enable;
