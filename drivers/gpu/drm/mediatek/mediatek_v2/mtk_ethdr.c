@@ -33,7 +33,6 @@
 
 #define VDO1_CONFIG_HDR_BE_ASYNC_CFG_WD 0xE70
 #define ROUND(x, y) ((x/y) + (((x%y) >= (y/2)) ? 1 : 0))
-#define MIN(x, y) (((x) <= (y)) ? (x) : (y))
 #define VDO1_CONFIG_MIXER_IN1_PAD 0xD40
 	#define MIXER_IN1_MODE				REG_FLD(2, 0)
 	#define MIXER_IN1_CH_SWAP			REG_FLD(1, 4)
