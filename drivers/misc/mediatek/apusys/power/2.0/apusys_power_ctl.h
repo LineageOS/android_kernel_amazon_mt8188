@@ -6,11 +6,8 @@
 #ifndef _APUSYS_POWER_CTL_H_
 #define _APUSYS_POWER_CTL_H_
 
+#include <linux/minmax.h>
 #include "apusys_power_cust.h"
-
-
-#define MAX(a, b)	((a) > (b) ? (a) : (b))
-#define MIN(a, b)	((a) < (b) ? (a) : (b))
 
 extern struct apusys_dvfs_opps apusys_opps;
 extern struct device *apu_dev;
