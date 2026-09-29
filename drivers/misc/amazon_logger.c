@@ -710,7 +710,7 @@ static unsigned int amazon_logger_poll(struct file *file, poll_table *wait)
 	if (!logger)
 		return -ENODEV;
 	ret = ring_buffer_poll_wait(logger->buf,
-				    RING_BUFFER_ALL_CPUS, file, wait);
+				    RING_BUFFER_ALL_CPUS, file, wait, 0);
 
 	return ret;
 }
