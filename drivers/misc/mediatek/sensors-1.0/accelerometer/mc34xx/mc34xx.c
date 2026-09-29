@@ -2410,4 +2410,5 @@ module_exit(mc34xx_exit);
 MODULE_DESCRIPTION("MC34XX G-Sensor Driver");
 MODULE_AUTHOR("mCube-inc");
 MODULE_LICENSE("GPL");
+MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
 MODULE_VERSION(MC34XX_DEV_DRIVER_VERSION);
