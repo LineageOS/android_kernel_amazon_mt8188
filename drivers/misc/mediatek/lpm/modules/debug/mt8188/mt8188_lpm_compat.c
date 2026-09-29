@@ -139,7 +139,7 @@ int lpm_logger_init(void)
 }
 EXPORT_SYMBOL(lpm_logger_init);
 
-void __exit lpm_logger_deinit(void)
+void lpm_logger_deinit(void)
 {
 	spm_cond_deinit();
 }
