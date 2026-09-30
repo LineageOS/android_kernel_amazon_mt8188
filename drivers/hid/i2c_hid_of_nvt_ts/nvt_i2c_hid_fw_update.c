@@ -192,6 +192,9 @@ int32_t update_firmware_request(char *filename)
 		}
 	}
 
+	if (ret)
+		return ret;
+
 	// check FW need to write size
 	if (nvt_get_fw_need_write_size(fw_entry)) {
 		NVT_ERR("get fw need to write size fail!\n");
@@ -1687,7 +1690,8 @@ int32_t Boot_Update_Firmware(void)
 			NVT_LOG("Found INX FW\n");
 			goto request_found;
 		}
-		break;
+		update_firmware_release();
+		return NT36523N_FW_NO_DEED_UPGRADE;
 	case LCM_NT36523N_KD_HSD:
 		ret = update_firmware_request(BOOT_UPDATE_FIRMWARE_NAME_HID_HSD);
 		if (ret) {
@@ -1698,6 +1702,7 @@ int32_t Boot_Update_Firmware(void)
 		}
 	default:
 		NVT_ERR("Not found nt36523n fw, exit.\n");
+		update_firmware_release();
 		return NT36523N_FW_NO_DEED_UPGRADE;
 	}
 request_found:
